@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>木曜日の迷宮 - OHMAMA SOFT Adventure Series Vol.6</title>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{
+  height:100%;background:#0a0a0e;
+  font-family:'DotGothic16','MS Gothic',monospace;
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;
+}
+.shell{
+  width:min(100vw,680px);
+  display:flex;flex-direction:column;
+  background:#000;
+  border:3px solid #444;
+  box-shadow:0 0 40px rgba(80,40,120,.4);
+}
+.hdr{
+  background:#0c0c14;
+  border-bottom:2px solid #2a2a3a;
+  padding:4px 10px;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.hdr-title{font-size:11px;color:#7a7a9a;letter-spacing:.1em;}
+.hdr-vol{font-size:11px;color:#c9a0ff;letter-spacing:.06em;}
+
+.game-area{
+  display:grid;
+  grid-template-columns:1fr 168px;
+  background:#000;
+}
+.scene-wrap{
+  border-right:2px solid #2a2a3a;
+  background:#000;
+  position:relative;
+}
+#sceneCanvas{
+  display:block;width:100%;
+  aspect-ratio:4/3;
+  image-rendering:pixelated;image-rendering:crisp-edges;
+}
+.scene-label{
+  position:absolute;bottom:4px;left:6px;
+  font-size:10px;color:#aaa;background:rgba(0,0,0,.7);
+  padding:1px 5px;letter-spacing:.05em;
+}
+.cmd-panel{
+  background:#000;padding:10px 8px;
+  display:flex;flex-direction:column;gap:5px;
+}
+.cmd-section-label{
+  font-size:10px;color:#666;letter-spacing:.1em;
+  border-bottom:1px solid #222;padding-bottom:3px;margin-bottom:2px;
+}
+.cmd-item{
+  font-size:clamp(13px,2.2vw,17px);
+  color:#cfcfe0;cursor:pointer;
+  padding:3px 6px;border-radius:2px;
+  display:flex;align-items:center;gap:4px;
+  transition:background .1s,color .1s;
+  white-space:nowrap;user-select:none;
+}
+.cmd-item:hover{background:#1c1c28;color:#fff;}
+.cmd-item.selected{color:#fff;background:#22182e;}
+.cmd-item.selected::before{content:'▶';color:#c9a0ff;font-size:.8em;}
+.cmd-item:not(.selected)::before{content:'　';font-size:.8em;}
+
+.status-bar{
+  background:#0a0a12;
+  border-top:1px solid #222;border-bottom:1px solid #222;
+  padding:5px 10px;
+  display:flex;gap:14px;align-items:center;
+  font-size:11px;color:#777;flex-wrap:wrap;
+}
+.status-bar span{color:#bbb;}
+.gauge{
+  flex:1;min-width:90px;height:12px;background:#1a1a24;
+  border:1px solid #333;border-radius:6px;overflow:hidden;position:relative;
+}
+.gauge-fill{
+  height:100%;width:100%;
+  background:linear-gradient(90deg,#3aa0ff,#8affca);
+  transition:width .35s,background .35s;
+}
+.gauge-fill.mid{background:linear-gradient(90deg,#ffcc44,#ffaa22);}
+.gauge-fill.low{background:linear-gradient(90deg,#ff6644,#ff9e9e);}
+
+.text-win{
+  background:#0d0d14;min-height:92px;
+  padding:8px 12px 6px;border-top:1px solid #222;
+}
+.text-speaker{font-size:12px;color:#9ad1ff;margin-bottom:3px;letter-spacing:.06em;}
+.text-body{font-size:clamp(14px,2.5vw,18px);line-height:1.75;color:#eee;white-space:pre-wrap;}
+.text-body.sys{color:#9ad1ff;}
+.text-body.npc{color:#fff1a8;}
+.text-body.hint{color:#b9ffbf;}
+.text-body.ok{color:#8affca;}
+.text-body.danger{color:#ff9e9e;}
+.text-body.ending{color:#ffe27a;}
+.text-body.twist{color:#ff9eea;}
+@keyframes _blink{0%,100%{opacity:1}50%{opacity:0}}
+
+.target-panel{
+  background:#000;border-top:2px solid #2a2a3a;
+  padding:6px 8px;min-height:50px;
+  display:flex;flex-wrap:wrap;gap:5px;align-items:flex-start;
+}
+.target-label{font-size:10px;color:#666;letter-spacing:.08em;width:100%;margin-bottom:2px;}
+.tgt-btn{
+  background:#12121a;border:1px solid #444;color:#cfcfe0;
+  font-family:'DotGothic16','MS Gothic',monospace;
+  font-size:clamp(12px,2vw,15px);
+  padding:5px 10px;cursor:pointer;transition:all .1s;
+  white-space:nowrap;min-height:36px;
+}
+.tgt-btn:hover{background:#22222e;border-color:#888;color:#fff;}
+.tgt-btn:active{transform:scale(.96);}
+
+.line-banner{
+  display:none;background:#06c755;color:#fff;
+  font-size:12px;padding:8px 12px;text-align:center;border-bottom:2px solid #04a044;
+}
+.line-banner.show{display:block;}
+.line-banner button{
+  margin-top:4px;background:#fff;color:#06c755;border:none;
+  padding:5px 14px;font-family:inherit;font-size:12px;cursor:pointer;min-height:36px;font-weight:bold;
+}
+@media(max-width:500px){
+  .shell{width:100vw;border:none;}
+  html,body{overflow:auto;align-items:flex-start;}
+  .cmd-item{font-size:13px;}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="line-banner" id="lineBanner">
+    ⚠ LINE内ブラウザでは正しく動作しない場合があります
+    <br><button onclick="open(location.href)">🌐 ブラウザで開く</button>
+  </div>
+
+  <div class="hdr">
+    <div class="hdr-title">OHMAMA SOFT · ADVENTURE SERIES</div>
+    <div class="hdr-vol" id="hdrVol">Vol.6 木曜日の迷宮</div>
+  </div>
+
+  <div class="game-area">
+    <div class="scene-wrap">
+      <canvas id="sceneCanvas" width="320" height="240"></canvas>
+      <div class="scene-label" id="sceneLabel">迷宮入口</div>
+    </div>
+    <div class="cmd-panel" id="cmdPanel">
+      <div class="cmd-section-label" id="cmdLabel">COMMAND</div>
+      <!-- commands injected -->
+    </div>
+  </div>
+
+  <div class="status-bar" id="statusBar">
+    <div>ばしょ：<span id="stLoc">迷宮入口</span></div>
+    <div style="display:flex;align-items:center;gap:6px;flex:1;">
+      生産性<div class="gauge"><div class="gauge-fill" id="gaugeFill"></div></div><span id="stProd">100</span>
+    </div>
+  </div>
+
+  <div class="text-win">
+    <div class="text-speaker" id="txSpk">システム</div>
+    <div class="text-body sys" id="txBody">…</div>
+  </div>
+
+  <div class="target-panel" id="targetPanel">
+    <div class="target-label" id="targetLabel">▶ コマンドを えらんでください</div>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════
+   木曜日の迷宮 — OHMAMA SOFT Adventure Series Vol.6
+   製造業版ウィザードリィ風・コマンドアドベンチャー
+   ── シナリオはすべて WEEK / SCENARIO に集約（週替わりはここだけ編集）──
+══════════════════════════════════════════════════════════ */
+
+/* ───────── 週メタ情報（毎週木曜にここを更新）───────── */
+const WEEK = {
+  no: 1,
+  date: '2026-06-04',
+  title: '木曜日の迷宮',
+  subtitle: '〜 第一夜：消えた木曜日 〜',
+};
+
+/* ───────── 約束戦士（パーティ）───────── */
+const PARTY = ['佐藤さん','岩田君','高林君','ミヤカワくん'];
+
+/* ───────── 経営アプローチ（戦闘コマンド）───────── */
+const APPROACHES = ['交渉','カイゼン','標準化','動機づけ','データ分析'];
+
+/* ───────── 敵データ ─────────
+   weak: 効果ばつぐんになるアプローチ。
+   抵抗: 倒すのに必要な「効果ばつぐん」ヒット数。
+   ボスは needAll:true で、別々のアプローチを抵抗数ぶん当てる必要あり。 */
+const ENEMIES = {
+  sagyo: {
+    name:'やる気のないさぎょういん', 抵抗:2, weak:['動機づけ','標準化'],
+    intro:'「いやー、今日だるいっすわ……」\nスマホを片手に、手が止まっている。\nやる気のないさぎょういんが あらわれた！',
+    win:'「……あれ、ちょっとやる気出てきたかも。やってみます！」\nさぎょういんは 戦力に変わった！',
+    hitOk:'刺さった！ さぎょういんの目に光が戻る。',
+    hitNg:'響かない。さぎょういんは ますますダレてしまった……',
+  },
+  gaichu: {
+    name:'がいちゅうさん', 抵抗:2, weak:['カイゼン','交渉'],
+    intro:'「……その価格では収穫ができません」\n腕を組んだ がいちゅうさんが 立ちふさがった！',
+    win:'「その条件なら、なんとかやりましょう」\nがいちゅうさんは 道を空けてくれた！',
+    hitOk:'効いた！ がいちゅうさんの表情が ゆるむ。',
+    hitNg:'「その価格では収穫ができません」\n一歩も引かない……',
+  },
+  customer: {
+    name:'お客様', 抵抗:2, weak:['交渉','データ分析'],
+    intro:'「納期はまだか！しかも値段が高い！どうなっとるんだ！」\nお客様が 仁王立ちで 詰めてくる！',
+    win:'「……なるほど、その説明なら納得だ。頼んだぞ」\nお客様は 笑顔で 去っていった！',
+    hitOk:'伝わった！ お客様が 耳を傾けはじめる。',
+    hitNg:'「言い訳はいい！」\nお客様の 圧が さらに強まる……',
+  },
+  /* 大ボス：別々のアプローチを4種あてる総合力勝負 */
+  boss: {
+    name:'納期ドラゴン', 抵抗:4, weak:APPROACHES.slice(), needAll:true,
+    intro:'迷宮の最奥。壁という壁にカレンダーが燃えている。\n「グォォ……ノウキ……マニアワヌ……」\n大ボス《納期ドラゴン》が 立ちはだかった！',
+    win:'納期ドラゴンは 力尽き、燃えるカレンダーが静かに鎮まった。\n屋上への扉が、ひらいた。',
+    hitOk:'会心の一手！ ドラゴンの鱗が一枚はがれ落ちる。',
+    hitNg:'同じ手は もう効かない！ 別のアプローチが必要だ。\nドラゴンの炎が パーティを焼く！',
+  },
+  /* 大どんでん返しの最終戦 */
+  kenge: {
+    name:'生産性悪化の権化', 抵抗:3, weak:['標準化','データ分析','カイゼン'], needAll:true,
+    intro:'スポンジマンの体が ぐにゃりと膨らみ、黒く濁っていく。\n「……気づかなかったか。ムダ・ムラ・ムリ……\n　すべてを生み続けてきたのは、この私だ」\n《生産性悪化の権化》の正体を あらわした！',
+    win:'権化は ひとつまみのスポンジに戻り、ぽとりと落ちた。\n「……次は、月末棚卸で会おう」\nそう言い残して、消えた。',
+    hitOk:'凡事徹底の一撃！ 権化のヘドロが はがれていく。',
+    hitNg:'ムダが増える! 権化は パーティの時間を奪った！',
+  },
+};
+
+/* ───────── アイテム ───────── */
+const ITEMS = {
+  'カイゼン提案書':{ desc:'現場のムダを一枚にまとめた提案書。戦闘で「カイゼン」が必ず効くようになる。' },
+  '5Sチェックシート':{ desc:'整理・整頓・清掃・清潔・しつけ。「標準化」が必ず効くようになる。' },
+  'エナジードリンク':{ desc:'つかうと生産性が30回復する。ここぞで。' },
+  'ゴルフクラブ':{ desc:'使い込まれた7番アイアン。木曜の約束の象徴。持っているだけで少し勇気が出る。' },
+};
+
+/* ───────── 迷宮（部屋＝ノード／exitsは方角つき）─────────
+   enemy: その部屋に入ると戦闘（一度倒すと flags に記録）
+   onClearMove: 戦闘クリア後に解放される出口
+   items: しらべる/とる で入手 */
+const SCENARIO = {
+  start: 'entrance',
+  rooms: {
+    entrance:{
+      name:'迷宮入口・タイムカード前',
+      desc:'目を覚ますと、見慣れたはずの工場が ねじれた迷宮に変わっていた。\nタイムカードの時計は すべて「木？？日」で止まっている。\n木曜日が、迷宮のどこかに 消えてしまったらしい。',
+      exits:[{dir:'北',to:'press',label:'北：プレス工程の回廊'}],
+      first:'guide',  // 初回スポンジマン登場
+    },
+    press:{
+      name:'プレス工程の回廊',
+      desc:'プレス機が並ぶ長い回廊。一台だけ、誰も操作していないのに動いている。',
+      enemy:'sagyo',
+      exits:[
+        {dir:'北',to:'assembly',label:'北：組立ラインの交差点'},
+        {dir:'東',to:'storage',label:'東：資材倉庫'},
+        {dir:'南',to:'entrance',label:'南：迷宮入口へ戻る'},
+      ],
+    },
+    storage:{
+      name:'資材倉庫の袋小路',
+      desc:'棚が天井まで迫る袋小路。床に書類とロッカーが転がっている。',
+      items:['カイゼン提案書','ゴルフクラブ'],
+      exits:[{dir:'西',to:'press',label:'西：プレス工程の回廊'}],
+    },
+    assembly:{
+      name:'組立ラインの交差点',
+      desc:'コンベアが四方に伸びる交差点。流れてくるのは 半製品ではなく、なぜか発注書の山。',
+      enemy:'gaichu',
+      exits:[
+        {dir:'北',to:'inspect',label:'北：検査ゲート'},
+        {dir:'東',to:'meeting',label:'東：会議室の間'},
+        {dir:'南',to:'press',label:'南：プレス工程の回廊'},
+      ],
+    },
+    meeting:{
+      name:'会議室の間',
+      desc:'やけに静かな会議室。ホワイトボードに「ボトルネックは最奥」と走り書き。\n机の上にエナジードリンクと5Sチェックシートが置かれている。',
+      items:['エナジードリンク','5Sチェックシート'],
+      exits:[{dir:'西',to:'assembly',label:'西：組立ラインの交差点'}],
+    },
+    inspect:{
+      name:'検査ゲート',
+      desc:'通行を阻む検査ゲート。赤ランプが点滅し、お客様の影が ゆらめいている。',
+      enemy:'customer',
+      exits:[
+        {dir:'南',to:'assembly',label:'南：組立ラインの交差点'},
+        {dir:'北',to:'stairs',label:'北：屋上への階段', needClear:true},
+      ],
+    },
+    stairs:{
+      name:'屋上への階段・最奥の間',
+      desc:'屋上へ続く階段。だがその前に、燃えるカレンダーの熱気が立ちこめている。',
+      enemy:'boss',
+      boss:true,
+      exits:[{dir:'上',to:'rooftop',label:'上：屋上へ', needClear:true}],
+    },
+    rooftop:{
+      name:'屋上（木曜の練習場）',
+      desc:'',  // 演出はエンディング処理で
+      exits:[],
+      ending:true,
+    },
+  },
+};
+
+/* ══════════════════════════════════════════════════════════
+   状態
+══════════════════════════════════════════════════════════ */
+const state = {
+  loc: SCENARIO.start,
+  prod: 100,
+  inventory: [],
+  flags:{},      // cleared_<room> 等
+  mode:'explore',// 'explore' | 'battle'
+  battle:null,
+  ended:false,
+};
+
+/* ══════════════════════════════════════════════════════════
+   キャンバス描画
+══════════════════════════════════════════════════════════ */
+const canvas = document.getElementById('sceneCanvas');
+const ctx = canvas.getContext('2d');
+const W=320,H=240;
+function cls(c='#000'){ctx.fillStyle=c;ctx.fillRect(0,0,W,H);}
+function rect(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(x,y,w,h);}
+function line(x1,y1,x2,y2,c,lw=1){ctx.strokeStyle=c;ctx.lineWidth=lw;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();}
+function circle(x,y,r,c){ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();}
+
+/* 共通：迷宮の回廊（遠近のある通路）を背景に描く */
+function drawCorridor(wall1,wall2,floor){
+  cls('#05050a');
+  // 床（手前ほど明るい）
+  rect(0,150,W,H-150,floor);
+  for(let i=0;i<6;i++) line(0,152+i*14,W,152+i*16,'rgba(0,0,0,.25)',1);
+  // 天井
+  rect(0,0,W,46,'#0a0a14');
+  // 奥行きの壁（パース線）
+  const cxp=160,cyp=100;
+  ctx.strokeStyle='rgba(120,120,160,.25)';ctx.lineWidth=1;
+  for(const[x,y]of[[0,0],[W,0],[0,150],[W,150]]){
+    ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(cxp,cyp);ctx.stroke();
+  }
+  // 左右の壁
+  rect(0,46,46,104,wall1);
+  rect(W-46,46,46,104,wall1);
+  for(let i=0;i<4;i++){rect(4,52+i*24,38,18,wall2);rect(W-42,52+i*24,38,18,wall2);}
+  // 奥の壁
+  rect(110,60,100,80,wall1);
+  rect(116,66,88,68,wall2);
+}
+
+/* ── 4人の約束戦士 ── */
+function golfer(x,y,s,cap,polo,pants,extra){
+  s=s||1;const R=n=>Math.round(n*s);
+  // 脚
+  rect(x-R(7),y+R(34),R(6),R(16),pants);rect(x+R(1),y+R(34),R(6),R(16),pants);
+  rect(x-R(8),y+R(48),R(8),R(4),'#fff');rect(x+R(1),y+R(48),R(8),R(4),'#fff'); // ゴルフシューズ
+  // 胴（ポロ）
+  rect(x-R(9),y+R(16),R(18),R(20),polo);
+  rect(x-R(12),y+R(18),R(4),R(13),polo);rect(x+R(8),y+R(18),R(4),R(13),polo);
+  rect(x-R(13),y+R(30),R(5),R(5),'#f0d2a8');rect(x+R(8),y+R(30),R(5),R(5),'#f0d2a8');
+  rect(x-R(2),y+R(16),R(4),R(8),'#fff'); // 襟あき
+  // 頭
+  rect(x-R(7),y+R(2),R(14),R(14),'#f0d2a8');
+  // 目
+  rect(x-R(4),y+R(8),R(3),R(2),'#222');rect(x+R(1),y+R(8),R(3),R(2),'#222');
+  // キャップ
+  if(cap){rect(x-R(8),y-R(1),R(16),R(5),cap);rect(x-R(8),y+R(3),R(11),R(2),cap);rect(x-R(8),y+R(4),R(15),R(2),cap);}
+  if(extra)extra(x,y,R);
+}
+function drawSato(x,y,s){golfer(x,y,s,'#d83030','#e84040','#2a2a3a');}      // 赤キャップ
+function drawIwata(x,y,s){golfer(x,y,s,'#2a5acc','#3a78e0','#33332a');}     // 青
+function drawTakabayashi(x,y,s){golfer(x,y,s,'#2a9a4a','#3ac060','#333');}  // 緑
+function drawMiyakawa(x,y,s){golfer(x,y,s,null,'#f0f0f0','#222255',(x,y,R)=>{
+  // DJヘッドホン＋サングラス
+  rect(x-R(9),y,R(18),R(3),'#333');rect(x-R(10),y+R(2),R(4),R(7),'#555');rect(x+R(6),y+R(2),R(4),R(7),'#555');
+  rect(x-R(6),y+R(7),R(12),R(3),'#111');
+});}
+const HERO_FN={'佐藤さん':drawSato,'岩田君':drawIwata,'高林君':drawTakabayashi,'ミヤカワくん':drawMiyakawa};
+
+/* パーティを横一列に小さく描く（探索画面の手前） */
+function drawParty(){
+  const xs=[58,120,196,262];
+  PARTY.forEach((p,i)=>HERO_FN[p](xs[i],168,0.78));
+}
+
+/* ── 敵スプライト ── */
+function drawSagyo(x,y,s){ // ダレた作業員
+  s=s||1;const R=n=>Math.round(n*s);
+  rect(x-R(10),y+R(20),R(20),R(24),'#5a6a55'); // 作業着
+  rect(x-R(8),y+R(4),R(16),R(16),'#f0d2a8');
+  rect(x-R(9),y+R(2),R(18),R(6),'#ffd83a'); // ヘルメット(傾き)
+  rect(x-R(4),y+R(11),R(3),R(1),'#555');rect(x+R(2),y+R(11),R(3),R(1),'#555'); // 眠そうな目
+  rect(x+R(8),y+R(24),R(7),R(10),'#222'); // スマホ持つ手
+  rect(x+R(9),y+R(25),R(5),R(8),'#5af');
+}
+function drawGaichu(x,y,s){ // 外注（農家風・名言の人）
+  s=s||1;const R=n=>Math.round(n*s);
+  rect(x-R(11),y+R(20),R(22),R(26),'#8a6a3a'); // 作業ジャンパー
+  rect(x-R(8),y+R(4),R(16),R(16),'#e0b888');
+  rect(x-R(13),y+R(1),R(26),R(4),'#caa050'); // 麦わら帽つば
+  rect(x-R(7),y-R(5),R(14),R(7),'#d8b860');  // 帽子本体
+  rect(x-R(4),y+R(11),R(3),R(2),'#222');rect(x+R(2),y+R(11),R(3),R(2),'#222');
+  rect(x-R(4),y+R(15),R(8),R(2),'#7a4a2a'); // への字口
+  // 腕組み
+  rect(x-R(11),y+R(26),R(22),R(5),'#6a4a20');
+}
+function drawCustomer(x,y,s){ // 詰めてくるお客様
+  s=s||1;const R=n=>Math.round(n*s);
+  rect(x-R(11),y+R(20),R(22),R(26),'#22324a'); // スーツ
+  rect(x-R(2),y+R(20),R(4),R(22),'#cc3030');  // ネクタイ
+  rect(x-R(8),y+R(4),R(16),R(16),'#f0d0a8');
+  rect(x-R(8),y+R(2),R(16),R(4),'#222');      // 髪
+  // 怒り眉
+  line(x-R(6),y+R(8),x-R(2),y+R(10),'#222',2);line(x+R(6),y+R(8),x+R(2),y+R(10),'#222',2);
+  rect(x-R(5),y+R(10),R(3),R(2),'#222');rect(x+R(2),y+R(10),R(3),R(2),'#222');
+  rect(x-R(3),y+R(15),R(6),R(2),'#822');
+  // 怒りマーク
+  rect(x+R(9),y-R(2),R(2),R(6),'#f33');rect(x+R(7),y,R(6),R(2),'#f33');
+  // ブリーフケース
+  rect(x+R(10),y+R(30),R(10),R(8),'#3a2a1a');
+}
+function drawDragon(x,y,s){ // 納期ドラゴン
+  s=s||1;const R=n=>Math.round(n*s);
+  // 胴
+  rect(x-R(26),y+R(14),R(52),R(34),'#7a2a3a');
+  rect(x-R(20),y+R(20),R(40),R(22),'#9a3a4a');
+  // 鱗
+  for(let i=0;i<4;i++)for(let j=0;j<2;j++)rect(x-R(18)+i*R(11),y+R(22)+j*R(10),R(8),R(8),'#b04a5a');
+  // 首・頭
+  rect(x-R(10),y-R(6),R(20),R(22),'#7a2a3a');
+  rect(x-R(12),y-R(10),R(24),R(10),'#9a3a4a'); // 顔
+  // 目（赤）
+  circle(x-R(5),y-R(6),R(3),'#ff3020');circle(x+R(5),y-R(6),R(3),'#ff3020');
+  // 角
+  rect(x-R(12),y-R(16),R(4),R(8),'#e8d088');rect(x+R(8),y-R(16),R(4),R(8),'#e8d088');
+  // 牙
+  rect(x-R(8),y,R(3),R(5),'#fff');rect(x+R(5),y,R(3),R(5),'#fff');
+  // 翼
+  rect(x-R(40),y+R(6),R(16),R(20),'#5a1a28');rect(x+R(24),y+R(6),R(16),R(20),'#5a1a28');
+  // 燃えるカレンダー（背景演出）
+  rect(x+R(30),y-R(20),R(16),R(20),'#eee');rect(x+R(32),y-R(18),R(12),R(4),'#c33');
+  rect(x+R(30),y-R(24),R(16),R(6),'#ff8800');rect(x+R(33),y-R(28),R(10),R(6),'#ffcc00');
+}
+function drawSponge(x,y,s,evil){ // スポンジマン（案内人→権化）
+  s=s||1;const R=n=>Math.round(n*s);
+  const body=evil?'#6a6020':'#e8c430', hole=evil?'#3a3410':'#c09820';
+  rect(x-R(20),y+R(10),R(40),R(36),body);
+  for(let i=0;i<4;i++)for(let j=0;j<3;j++)rect(x-R(14)+i*R(9),y+R(16)+j*R(10),R(5),R(5),hole);
+  rect(x-R(14),y,R(28),R(14),body);
+  rect(x-R(8),y+R(3),R(5),R(5),evil?'#000':'#111');rect(x+R(3),y+R(3),R(5),R(5),evil?'#000':'#111');
+  if(evil){circle(x-R(6),y+R(5),R(1.5),'#f00');circle(x+R(5),y+R(5),R(1.5),'#f00');}
+  rect(x-R(6),y+R(10),R(12),R(2),'#111');
+  if(evil){rect(x-R(6),y+R(10),R(2),R(4),'#111');rect(x+R(4),y+R(10),R(2),R(4),'#111');}
+}
+
+/* ── 部屋ごとの背景 ── */
+function drawRoomBG(id){
+  switch(id){
+    case 'entrance':
+      drawCorridor('#2a2a3a','#1a1a26','#3a3a48');
+      // タイムカードラック
+      rect(20,70,40,60,'#445');for(let i=0;i<5;i++)rect(24,74+i*11,32,8,'#cce');
+      // 止まった時計
+      circle(280,90,18,'#eee');circle(280,90,16,'#223');line(280,90,280,80,'#fff',2);line(280,90,288,92,'#f55',2);
+      break;
+    case 'press':
+      drawCorridor('#3a3548','#241f30','#2e2a3a');
+      function press(px){rect(px,60,40,70,'#556');rect(px+4,64,32,26,'#88a');rect(px+8,96,8,8,'#e55');rect(px+22,96,8,8,'#4e4');}
+      press(18);press(118);press(244);
+      break;
+    case 'storage':
+      drawCorridor('#3a3026','#241c12','#2e2418');
+      function shelf(sx){rect(sx,40,54,100,'#6a4a28');for(let r=0;r<3;r++)for(let c=0;c<2;c++)rect(sx+4+c*24,44+r*30,20,22,'#b88040');}
+      shelf(16);shelf(150);
+      rect(110,118,30,22,'#445'); // ロッカー
+      break;
+    case 'assembly':
+      drawCorridor('#2a3a3a','#1a2626','#243030');
+      rect(0,128,W,16,'#3a3a44');for(let i=0;i<22;i++)rect(i*16,130,12,12,'#4a4a55');
+      rect(70,118,30,10,'#dda');rect(160,116,30,10,'#dda');rect(220,120,28,10,'#dda'); // 発注書の山
+      break;
+    case 'meeting':
+      drawCorridor('#2a1f3a','#1a1226','#241a30');
+      rect(70,30,180,80,'#eef');rect(74,34,172,72,'#f8f8ff');
+      rect(84,44,120,5,'#58c');rect(84,56,150,4,'#e44');rect(84,70,90,4,'#393');
+      rect(120,150,90,18,'#7a5a30'); // 机
+      break;
+    case 'inspect':
+      drawCorridor('#3a2a2a','#261a1a','#302424');
+      rect(60,40,200,100,'#334');rect(150,40,20,100,'#556'); // ゲート柱
+      circle(160,60,8,'#f33');circle(160,60,5,'#f88'); // 赤ランプ
+      break;
+    case 'stairs':
+      drawCorridor('#3a1a1a','#260e0e','#301414');
+      // 階段
+      for(let i=0;i<6;i++)rect(120-i*4,150-i*16,80+i*8,14,i%2?'#5a2a2a':'#4a2222');
+      // 炎
+      for(let i=0;i<6;i++){const fx=30+i*50;rect(fx,40,12,30,'#ff6600');rect(fx+2,30,8,16,'#ffcc00');}
+      break;
+    case 'rooftop':
+      // 屋上・夜明けの練習場
+      cls('#1a2a4a');
+      rect(0,0,W,120,'#24406a');rect(0,0,W,60,'#2a4e80');
+      // 朝焼け
+      rect(0,90,W,40,'#e88a4a');rect(0,110,W,30,'#f0a860');
+      circle(160,120,30,'#ffdd88'); // 朝日
+      // 芝
+      rect(0,150,W,H-150,'#2a6a2a');for(let i=0;i<40;i++)rect((i*9)%W,150+(i*7)%40,2,5,'#3a8a3a');
+      // ピンフラッグ
+      rect(270,90,2,60,'#ccc');rect(272,90,16,10,'#e33');
+      break;
+    default: drawCorridor('#2a2a3a','#1a1a26','#3a3a48');
+  }
+}
+
+function drawExplore(){
+  drawRoomBG(state.loc);
+  drawParty();
+  frame();
+}
+function drawBattleScene(){
+  const b=state.battle;
+  drawRoomBG(state.loc);
+  // 敵を中央に大きく
+  const ex=160,ey=70;
+  ({sagyo:drawSagyo,gaichu:drawGaichu,customer:drawCustomer,boss:drawDragon}[b.key]
+    || (b.key==='kenge'?((x,y)=>drawSponge(x,y,1.3,true)):drawCustomer))(ex,ey,b.key==='boss'?1.0:1.4);
+  // パーティ（手前・小さめ）
+  drawParty();
+  frame();
+}
+function frame(){ctx.strokeStyle='rgba(0,0,0,.35)';ctx.lineWidth=6;ctx.strokeRect(0,0,W,H);}
+
+/* ══════════════════════════════════════════════════════════
+   テキスト表示（タイプライター＋つぎへ）
+══════════════════════════════════════════════════════════ */
+let _typeTimer=null,_typing=false,_pendingNext=null;
+function show(speaker,text,cls,onNext){
+  if(_typeTimer){clearInterval(_typeTimer);_typeTimer=null;}
+  const spk=document.getElementById('txSpk'),body=document.getElementById('txBody');
+  spk.textContent=speaker;
+  body.className='text-body '+(cls||'');
+  body.textContent='';
+  lockCommands(true);
+  const cur=document.createElement('span');
+  cur.style.cssText='display:inline-block;width:10px;height:1em;background:currentColor;vertical-align:text-bottom;margin-left:2px;animation:_blink .6s step-end infinite;';
+  body.appendChild(cur);
+  let i=0;_typing=true;_pendingNext=onNext||null;
+  _typeTimer=setInterval(()=>{
+    if(i<text.length){body.insertBefore(document.createTextNode(text[i]),cur);i++;}
+    else{clearInterval(_typeTimer);_typeTimer=null;cur.remove();_typing=false;showNextBtn();}
+  },28);
+}
+function showNextBtn(){
+  const panel=document.getElementById('targetPanel');panel.innerHTML='';
+  const btn=document.createElement('button');btn.className='tgt-btn';
+  btn.style.cssText='border-color:#c9a0ff;color:#c9a0ff;font-size:15px;animation:_blink .8s step-end infinite;';
+  btn.textContent='▼ つぎへ';
+  btn.onclick=()=>{
+    btn.style.animation='none';
+    const cb=_pendingNext;_pendingNext=null;lockCommands(false);
+    if(cb)cb();else resetPanel();
+  };
+  panel.appendChild(btn);
+}
+function lockCommands(lock){
+  document.querySelectorAll('.cmd-item').forEach(el=>{
+    el.style.pointerEvents=lock?'none':'';el.style.opacity=lock?'0.35':'';
+  });
+}
+
+/* ══════════════════════════════════════════════════════════
+   ステータス
+══════════════════════════════════════════════════════════ */
+function setStatus(){
+  const room=SCENARIO.rooms[state.loc];
+  document.getElementById('stLoc').textContent=room.name;
+  document.getElementById('sceneLabel').textContent=room.name;
+  document.getElementById('stProd').textContent=state.prod;
+  const g=document.getElementById('gaugeFill');
+  g.style.width=Math.max(0,state.prod)+'%';
+  g.className='gauge-fill'+(state.prod<=30?' low':state.prod<=60?' mid':'');
+}
+function hasItem(n){return state.inventory.includes(n);}
+function getItem(n){if(!hasItem(n))state.inventory.push(n);}
+function cleared(room){return state.flags['cleared_'+room];}
+
+/* ══════════════════════════════════════════════════════════
+   コマンドパネル（探索／戦闘で切替）
+══════════════════════════════════════════════════════════ */
+const EXPLORE_CMDS=['みる','すすむ','しらべる','はなす','つかう','もちもの'];
+function renderCmdPanel(){
+  const panel=document.getElementById('cmdPanel');
+  const cmds = state.mode==='battle' ? ['たたかう','つかう','もちもの'] : EXPLORE_CMDS;
+  document.getElementById('cmdLabel').textContent = state.mode==='battle'?'BATTLE':'COMMAND';
+  panel.querySelectorAll('.cmd-item').forEach(e=>e.remove());
+  cmds.forEach(c=>{
+    const d=document.createElement('div');d.className='cmd-item';d.dataset.cmd=c;d.textContent=c;
+    d.addEventListener('click',()=>renderTargets(c));
+    panel.appendChild(d);
+  });
+}
+
+let selectedVerb=null;
+function getTargets(verb){
+  const loc=state.loc, room=SCENARIO.rooms[loc];
+  if(verb==='みる') return [{key:'__here__',label:'ここをみる'}];
+  if(verb==='もちもの') return [{key:'__inv__',label:'もちものを確認'}];
+  if(verb==='すすむ'){
+    const ex=room.exits.filter(e=>!e.needClear || cleared(loc));
+    if(ex.length===0) return [{key:'__none__',label:'進める道がない'}];
+    return ex.map(e=>({key:e.to,label:e.label}));
+  }
+  if(verb==='しらべる'){
+    const list=(room.items||[]).filter(it=>!hasItem(it));
+    const base=[{key:'__look__',label:'あたりを調べる'}];
+    return base.concat(list.map(it=>({key:'item:'+it,label:it+'を調べる'})));
+  }
+  if(verb==='はなす') return [{key:'__party__',label:'仲間と話す'}];
+  if(verb==='つかう'){
+    if(state.inventory.length===0) return [{key:'__none__',label:'もちものがない'}];
+    return state.inventory.map(i=>({key:'use:'+i,label:i}));
+  }
+  if(verb==='たたかう') return APPROACHES.map(a=>({key:'app:'+a,label:a}));
+  return [{key:'__none__',label:'－'}];
+}
+function renderTargets(verb){
+  selectedVerb=verb;
+  document.querySelectorAll('.cmd-item').forEach(el=>el.classList.toggle('selected',el.dataset.cmd===verb));
+  const panel=document.getElementById('targetPanel');panel.innerHTML='';
+  const lbl=document.createElement('div');lbl.className='target-label';
+  lbl.textContent='▶ 【'+verb+'】 '+(verb==='たたかう'?'アプローチを えらべ':'えらんでください');
+  panel.appendChild(lbl);
+  getTargets(verb).forEach(t=>{
+    if(t.key==='__none__'){const s=document.createElement('span');s.className='target-label';s.style.color='#555';s.textContent=t.label;panel.appendChild(s);return;}
+    const b=document.createElement('button');b.className='tgt-btn';b.textContent=t.label;
+    b.onclick=()=>exec(verb,t.key,t.label);panel.appendChild(b);
+  });
+}
+function resetPanel(){
+  selectedVerb=null;
+  document.querySelectorAll('.cmd-item').forEach(el=>el.classList.remove('selected'));
+  document.getElementById('targetPanel').innerHTML='<div class="target-label">▶ コマンドを えらんでください</div>';
+}
+
+function exec(verb,key,label){
+  if(key==='__none__')return;
+  if(key==='__here__'||key==='__look__') return doLook(key==='__look__');
+  if(key==='__inv__') return doInventory();
+  if(key==='__party__') return doTalk();
+  if(verb==='すすむ') return doMove(key);
+  if(key.startsWith('item:')) return doTakeItem(key.slice(5));
+  if(key.startsWith('use:')) return doUse(key.slice(4));
+  if(key.startsWith('app:')) return doApproach(key.slice(4));
+}
+
+/* ══════════════════════════════════════════════════════════
+   探索コマンド
+══════════════════════════════════════════════════════════ */
+function doLook(detail){
+  const room=SCENARIO.rooms[state.loc];
+  show(room.name, room.desc || 'あたりを見回す。', '', ()=>resetPanel());
+}
+function doInventory(){
+  if(state.inventory.length===0) return show('もちもの','所持品はない。','sys',()=>resetPanel());
+  show('もちもの', state.inventory.join('、')+'\n\n'+state.inventory.map(i=>'・'+i+'：'+ITEMS[i].desc).join('\n'),'sys',()=>resetPanel());
+}
+function doTalk(){
+  const lines = {
+    entrance:'佐藤さん「おい、今日って木曜だよな…？　練習会あるぞ」\nミヤカワくん「その木曜が、迷宮のどこかに消えてる。取り戻すぞ」',
+    press:'高林君「敵が出ても慌てるな。"経営的アプローチ"で対処だ」',
+    storage:'岩田君「倉庫は宝の山だ。しらべて損はない」',
+    assembly:'佐藤さん「発注書が流れてくる…外注がらみだな」',
+    meeting:'高林君「ボードに"ボトルネックは最奥"。階段の先か」',
+    inspect:'ミヤカワくん「ゲートの向こうにお客様の影。逃げられんぞ」',
+    stairs:'岩田君「熱い…!　ここが最奥だ。全員、気合入れろ!」',
+  };
+  show('仲間たち', lines[state.loc] || PARTY[0]+'「木曜の練習会で会おう」', 'npc', ()=>resetPanel());
+}
+function doTakeItem(it){
+  getItem(it);
+  show('システム','「'+it+'」を手に入れた！\n'+ITEMS[it].desc,'ok',()=>{setStatus();resetPanel();});
+}
+function doUse(it){
+  if(it==='エナジードリンク'){
+    state.inventory=state.inventory.filter(x=>x!==it);
+    state.prod=Math.min(100,state.prod+30);
+    return show('システム','エナジードリンクを飲んだ！\n生産性が30回復した。','ok',()=>{setStatus();resetPanel();});
+  }
+  if(it==='ゴルフクラブ')
+    return show(PARTY[0],'「木曜の約束、まだ果たしてない。…行くぞ」\n少し勇気がわいた。','ok',()=>resetPanel());
+  show('システム','今は使いどころがないようだ。\n（'+it+'は戦闘で自動的に効果を発揮する）','hint',()=>resetPanel());
+}
+
+function doMove(to){
+  const room=SCENARIO.rooms[state.loc];
+  const exit=room.exits.find(e=>e.to===to);
+  if(exit && exit.needClear && !cleared(state.loc))
+    return show('システム','まだ先へは進めない。ここを片付けるのが先だ。','danger',()=>resetPanel());
+  state.loc=to;
+  const nr=SCENARIO.rooms[to];
+  drawExplore();setStatus();
+  show('システム','【移動】'+nr.name,'sys',()=>{
+    if(nr.ending) return triggerEnding();
+    show(nr.name, nr.desc, '', ()=>{
+      // 初回イベント（案内人スポンジマン登場）
+      if(nr.first==='guide' && !state.flags.guideMet){ resetPanel(); return; }
+      // 部屋の敵
+      if(nr.enemy && !cleared(to)) return startBattle(nr.enemy);
+      resetPanel();
+    });
+  });
+}
+
+/* ══════════════════════════════════════════════════════════
+   戦闘
+══════════════════════════════════════════════════════════ */
+function startBattle(enemyKey){
+  const e=ENEMIES[enemyKey];
+  state.mode='battle';
+  state.battle={key:enemyKey, 残:e.抵抗, used:[]};
+  renderCmdPanel();
+  drawBattleScene();
+  show(e.name, e.intro, 'danger', ()=>{ resetPanel(); promptApproach(); });
+}
+function promptApproach(){
+  // 自動でたたかうを開いてアプローチ選択へ誘導
+  renderTargets('たたかう');
+}
+function doApproach(app){
+  const b=state.battle, e=ENEMIES[b.key];
+  // アイテムによる確定効果
+  const boostKaizen = hasItem('カイゼン提案書') && app==='カイゼン';
+  const boost5S     = hasItem('5Sチェックシート') && app==='標準化';
+  let effective = e.weak.includes(app) || boostKaizen || boost5S;
+  // needAll（ボス・権化）は同じアプローチの再使用を無効化
+  if(effective && e.needAll && b.used.includes(app)) effective=false;
+
+  if(effective){
+    b.残--; b.used.push(app);
+    const extra=(boostKaizen||boost5S)?'\n（アイテムの効果で必中！）':'';
+    if(b.残<=0){
+      drawBattleScene();
+      return show(e.name, e.hitOk+extra+'\n\n'+e.win, 'ok', ()=>winBattle());
+    }
+    const need = e.needAll ? '別のアプローチで畳みかけろ！（残り'+b.残+'）' : 'もう一押し！（残り'+b.残+'）';
+    show('効果ばつぐん！', e.hitOk+extra+'\n'+need, 'ok', ()=>{ resetPanel(); promptApproach(); });
+  } else {
+    const dmg = e.key==='boss'||b.key==='boss'||b.key==='kenge' ? 20 : 15;
+    state.prod=Math.max(0,state.prod-dmg); setStatus();
+    if(state.prod<=0){
+      return show('システム', e.hitNg+'\n\n生産性がゼロになった……\nパーティは いったん 撤退した。', 'danger', ()=>gameOver());
+    }
+    show('いまひとつ…', e.hitNg+'\n生産性が'+dmg+'下がった。（残り'+state.prod+'）', 'danger', ()=>{ resetPanel(); promptApproach(); });
+  }
+}
+function winBattle(){
+  const b=state.battle, key=b.key;
+  state.flags['cleared_'+state.loc]=true;
+  state.prod=Math.min(100,state.prod+10); // 達成感
+  state.mode='explore'; state.battle=null;
+  renderCmdPanel(); drawExplore(); setStatus();
+
+  // ボス撃破 → 大どんでん返しへ
+  if(key==='boss'){
+    return show('システム','生産性が少し回復した。（+10）','ok',()=>twistSequence());
+  }
+  // 権化（最終戦）撃破 → エンディングへ
+  if(key==='kenge'){
+    state.loc='rooftop';
+    return show('システム','すべての元凶を 倒した。\n屋上への階段を、一気に駆け上がる——','ok',()=>triggerEnding());
+  }
+  show('システム','戦闘に勝利した！　生産性が10回復した。\nこの先へ進めるようになった。','ok',()=>resetPanel());
+}
+function gameOver(){
+  document.querySelectorAll('.cmd-item').forEach(el=>el.style.pointerEvents='none');
+  const panel=document.getElementById('targetPanel');panel.innerHTML='';
+  const b=document.createElement('button');b.className='tgt-btn';
+  b.style.cssText='border-color:#ff9e9e;color:#ff9e9e;';
+  b.textContent='↺ もう一度 挑戦する';
+  b.onclick=()=>location.reload();
+  panel.appendChild(b);
+}
+
+/* ══════════════════════════════════════════════════════════
+   大どんでん返し → 最終戦 → エンディング
+══════════════════════════════════════════════════════════ */
+function twistSequence(){
+  // 案内人スポンジマンが現れて……
+  drawRoomBG(state.loc);drawParty();
+  drawSponge(160,70,1.2,false);frame();
+  show('スポンジマン','「よくぞ ここまで来た。木曜は すぐそこだ」\nずっと道案内をしてくれた スポンジマンが、にやりと笑った。','npc',()=>{
+    show('???','「……だが、ひとつ 教えておこう」','twist',()=>{
+      state.mode='battle';
+      startBattle('kenge');
+    });
+  });
+}
+
+function triggerEnding(){
+  if(state.ended) return;
+  state.ended=true;
+  drawRoomBG('rooftop');drawParty();frame();
+  document.getElementById('sceneLabel').textContent='屋上（木曜の練習場）';
+  document.querySelectorAll('.cmd-item').forEach(el=>el.style.pointerEvents='none');
+  const text =
+    '階段を上りきると、そこは朝焼けの屋上。\n止まっていた時計が、かちりと動き出した。\n――木曜日が、帰ってきた。\n\n'+
+    '佐藤さん「間に合った…!　練習会だ!」\n岩田君「ナイスショット!」\n高林君「今日の反省会、ビールがうまいぞ」\n'+
+    'ミヤカワくん「また来週、この木曜で会おう」\n\n'+
+    '約束戦士たちは、今日も 木曜日を 取り戻した。\n\n― 第'+WEEK.no+'夜 おわり ―\n\n次回、また来週の木曜日に。';
+  show('【ENDING】木曜の練習場', text, 'ending', ()=>{
+    document.getElementById('targetPanel').innerHTML='<div class="target-label">― おわり ― リロードでもう一度遊べます ／ また来週木曜に新ステージ！</div>';
+  });
+}
+
+/* ══════════════════════════════════════════════════════════
+   初期化
+══════════════════════════════════════════════════════════ */
+function init(){
+  document.getElementById('hdrVol').textContent='Vol.6 '+WEEK.title+'  第'+WEEK.no+'夜';
+  renderCmdPanel();
+  drawExplore();setStatus();
+  show('システム',
+    WEEK.title+'　'+WEEK.subtitle+'\nOHMAMA SOFT Adventure Series Vol.6\n\n'+
+    'いつもの約束ゴルフ訓練会。集まったのは——\n佐藤さん・岩田君・高林君・ミヤカワくん の4人。\n\n'+
+    'だが今日、木曜日が 迷宮に消えた。\n迷宮化した工場を脱出し、木曜の練習会＆反省会を 取り戻せ！\n\n'+
+    '操作：コマンド → たいしょう の2ステップ。\n敵には「経営的アプローチ」で立ち向かえ。',
+    'sys', ()=>{
+      // 案内人スポンジマン登場
+      drawRoomBG('entrance');drawParty();drawSponge(250,70,1.0,false);frame();
+      show('スポンジマン','「……案内しよう。出口は、ずっと先だ」\n黄色い影が、迷宮の奥を指さした。','npc',()=>{
+        state.flags.guideMet=true;resetPanel();
+      });
+    });
+}
+if(/Line\//i.test(navigator.userAgent)) document.getElementById('lineBanner').classList.add('show');
+init();
+</script>
+</body>
+</html>

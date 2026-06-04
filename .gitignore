@@ -1,0 +1,5 @@
+# 公開リポジトリには index.html のみを上げる（内部メモ・設定は除外）
+CLAUDE.md
+モクニョビの迷宮.txt
+.claude/
+_check.js
