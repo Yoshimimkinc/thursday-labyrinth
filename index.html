@@ -163,7 +163,7 @@ html,body{
   <div class="status-bar" id="statusBar">
     <div>ばしょ：<span id="stLoc">迷宮入口</span></div>
     <div style="display:flex;align-items:center;gap:6px;flex:1;">
-      生産性<div class="gauge"><div class="gauge-fill" id="gaugeFill"></div></div><span id="stProd">100</span>
+      <span id="stMetric">生産性</span><div class="gauge"><div class="gauge-fill" id="gaugeFill"></div></div><span id="stProd">100</span>
     </div>
   </div>
 
@@ -185,7 +185,7 @@ html,body{
 ══════════════════════════════════════════════════════════ */
 
 /* ───────── 週メタ情報（毎週木曜にここを更新）───────── */
-const WEEK = {
+let WEEK = {
   no: 3,
   date: '2026-06-25',
   title: '木曜日の迷宮',
@@ -196,13 +196,13 @@ const WEEK = {
 const PARTY = ['佐藤さん','岩田君','高林君','ミヤカワくん'];
 
 /* ───────── 経営アプローチ（戦闘コマンド）───────── */
-const APPROACHES = ['交渉','カイゼン','標準化','動機づけ','データ分析'];
+let APPROACHES = ['交渉','カイゼン','標準化','動機づけ','データ分析'];
 
 /* ───────── 経営者のひとこと ─────────
    経営者は、ねぎらいつつも結局ひとこと添えてしまう生き物。
    戦闘に勝つたびに 約束戦士の誰かが必ず ひとこと言う（自覚あり・愛のある自虐）。
    ※実在の4人を下げない。笑いの的は「つい言っちゃう経営者の習性」そのもの。 */
-const OWNER_HITOKOTO = [
+let OWNER_HITOKOTO = [
   {who:'佐藤さん',  line:'「ナイス! …まあ なんとかなる。\nとは言うけど、段取り八分やぞ?」'},
   {who:'岩田君',    line:'「よっしゃ! …で、報連相だけは頼むな。\n……って、つい言っちゃうわ、経営者は」'},
   {who:'高林君',    line:'「上出来や。5Sは裏切らん。\nだまされたと思って、もう一周な?」'},
@@ -228,7 +228,7 @@ const OWNER_HITOKOTO = [
    weak: 効果ばつぐんになるアプローチ。
    抵抗: 倒すのに必要な「効果ばつぐん」ヒット数。
    ボスは needAll:true で、別々のアプローチを抵抗数ぶん当てる必要あり。 */
-const ENEMIES = {
+let ENEMIES = {
   sagyo: {
     name:'やる気のないさぎょういん', 抵抗:2, weak:['動機づけ','標準化'],
     intro:'「ふぁ〜……この湿気で あたま ぼーっとして……\nエアコン、もうちょい 効かせてもらえません?」\n汗を拭きながら、手が止まっている。\nやる気のないさぎょういんが あらわれた！',
@@ -272,7 +272,7 @@ const ENEMIES = {
 };
 
 /* ───────── アイテム ───────── */
-const ITEMS = {
+let ITEMS = {
   'カイゼン提案書':{ desc:'現場のムダを一枚にまとめた提案書。戦闘で「カイゼン」が必ず効くようになる。' },
   '5Sチェックシート':{ desc:'整理・整頓・清掃・清潔・しつけ。「標準化」が必ず効くようになる。' },
   'エナジードリンク':{ desc:'つかうと生産性が30回復する。ここぞで。' },
@@ -283,7 +283,7 @@ const ITEMS = {
    enemy: その部屋に入ると戦闘（一度倒すと flags に記録）
    onClearMove: 戦闘クリア後に解放される出口
    items: しらべる/とる で入手 */
-const SCENARIO = {
+let SCENARIO = {
   start: 'entrance',
   rooms: {
     entrance:{
@@ -350,6 +350,228 @@ const SCENARIO = {
 };
 
 /* ══════════════════════════════════════════════════════════
+   ⛳ ゴルフラウンド編（別ステージ）— 工場編はそのまま残す
+   流れ：到着→ロッカー→クラブハウス→ティー→フェアウェイ→グリーン→カップイン
+   スコアはパー基準（パー4の1番ホール）。各ショットは正しいクラブ選択で攻略。
+══════════════════════════════════════════════════════════ */
+const GOLF_WEEK = {
+  no: 1, date: '2026-06-25',
+  title: 'ゴルフラウンド編',
+  subtitle: '〜 第一夜：約束の1番ホール 〜',
+};
+/* クラブ＝戦闘コマンド */
+const GOLF_APPROACHES = ['ドライバー','アイアン','ユーティリティ','ウェッジ','パター'];
+
+const GOLF_HITOKOTO = [
+  {who:'佐藤さん',  line:'「ナイスショット! …まあ ゴルフも 段取り八分や。\n素振り なしで 打つと、だいたい チョロるねん」'},
+  {who:'岩田君',    line:'「よっしゃ! …で、スコアは 正直に つけよな。\n……って つい 言うてまう、経営者の 性や」'},
+  {who:'高林君',    line:'「ナイスや。やらまい会 40-43は 訓練の 賜物や。\n毎週の 木曜練習、裏切らんで」'},
+  {who:'ミヤカワくん',line:'「ナイス! 飛距離より 方向性、勢いより 再現性。\n……結局、仕事と おんなじやな」'},
+  {who:'佐藤さん',  line:'「ええ球や! でも 池は 見えてたやろ?\n刻む勇気、ゴルフも 経営も 同じやで」'},
+  {who:'高林君',    line:'「上出来! 3パットだけは 避けよな。\n最後の ツメが 甘いと、全部 ぼやけるで」'},
+];
+
+const GOLF_ENEMIES = {
+  ob: {
+    name:'OBの誘惑', par:1, 抵抗:1, weak:['ドライバー','ユーティリティ'],
+    intro:'1番ホール、ティーグラウンド。右は OB杭、左は 林。\n「ここは 力まず、フェアウェイの ど真ん中へ——」\nティーショットの 緊張が おそいかかる！',
+    guchi:{who:'佐藤さん', line:'「朝イチは だいたい チョロる……わかるわ。\nいや 待て、素振り サボったの 俺やんけ。\n準備不足を 道具のせいに したら あかんな」'},
+    win:'ナイスショット! 白い球が フェアウェイを 真っ二つ。\n会心の ティーショットだ！',
+    hitOk:'芯を 食った! フェアウェイ センターへ。',
+    hitNg:'力んだ! 球が 右へ 曲がっていく……',
+  },
+  fairway: {
+    name:'池越えの2打目', par:1, 抵抗:1, weak:['アイアン','ユーティリティ'],
+    intro:'フェアウェイ センター、残り 150ヤード。\nグリーン手前には なみなみと 水を たたえた 池。\n「無理して 届かせるか、刻むか——」',
+    guchi:{who:'高林君', line:'「届かせたい 気持ち、めっちゃ わかる……\nでも 無理して 池ポチャは 目も 当てられん。\n背伸びより 確実な 一手、商売も 同じやな」'},
+    win:'ナイスオン! 球は 池を 軽々 越えて グリーンを とらえた！',
+    hitOk:'ベストな 番手! グリーンを ピンポイントで 狙う。',
+    hitNg:'番手ミス! 池の しぶきが 上がった……',
+  },
+  green: {
+    name:'魔のロングパット', par:2, 抵抗:2, weak:['パター'], boss:true,
+    intro:'グリーンオン。だが ピンまで 10メートルの 大曲がり ライン。\n「3パットだけは……3パットだけは……」\n《魔のロングパット》が 立ちはだかる！',
+    guchi:{who:'岩田君', line:'「グリーン上で 急に 無口に なるやつ、おる。\n……あ、俺や。プレッシャーに 弱いの 自覚しとる。\nだからこそ ルーティン、だからこそ 練習やな」'},
+    win:'コロコロ……カラッ。\n2パットで しっかり おさめた! ナイスタッチ!',
+    hitOk:'絶妙な タッチ! ボールが カップに 寄っていく。',
+    hitNg:'打ち切れない! ボールが ピンを 大きく オーバー……',
+  },
+  /* どんでん返し：にこやかな案内キャディの正体 */
+  kenge: {
+    name:'スロープレーの権化', par:0, 抵抗:3, weak:['ドライバー','アイアン','パター'], needAll:true,
+    intro:'にこやかだった キャディの 影が ぐにゃりと 伸びる。\n「お客様……後ろの組が、お待ちですよ……\n　ワタシこそ、すべての プレーを 遅らせる 者——」\n《スロープレーの権化》が 正体を あらわした！',
+    win:'テキパキとした 一打一打が、権化の もやを 晴らしていく。\n「……お見事。では、最終カップへ お進みを」\nキャディは にっこり 笑って、消えた。',
+    hitOk:'素早く 的確な 一打! 権化の もやが 晴れる。',
+    hitNg:'迷いが 出た! 権化が プレーを さらに 遅らせる……',
+  },
+};
+
+const GOLF_ITEMS = {
+  '相棒ドライバー':{ desc:'振り慣れた 一本。ティーショットで「ドライバー」が 必ず 決まる。' },
+  'お気に入りパター':{ desc:'手に 馴染んだ パター。グリーンで「パター」が 必ず 決まる。' },
+  'スポーツドリンク':{ desc:'つかうと 集中が 戻り、次の1打の ミスを 1回 帳消しにする。' },
+  '優勝記念ボール':{ desc:'やらまい会 40-43 優勝の 記念球。持っているだけで 少し 落ち着く。' },
+};
+
+const GOLF_SCENARIO = {
+  start: 'arrival',
+  rooms: {
+    arrival:{
+      name:'ゴルフ場 到着・駐車場',
+      desc:'ねじれた 山道を 抜けると、見慣れた はずの ゴルフ場が、\nなぜか 迷路のように 入り組んでいた。\nクラブハウスの 時計は すべて「木？？日」で 止まっている。\n木曜の ラウンドが、どこかへ 消えてしまったらしい。\n\n空は 梅雨の 晴れ間。絶好の ゴルフ日和だ。',
+      exits:[{dir:'前',to:'locker',label:'前：ロッカールームへ'}],
+      first:'caddy',
+      talk:'佐藤さん「お、今日は ええ天気や! 絶好の ゴルフ日和!」\nミヤカワくん「その 木曜が 消えとる。1番ホールから 取り戻すぞ」',
+    },
+    locker:{
+      name:'ロッカールーム',
+      desc:'ロッカールーム。ずらりと 並ぶ 扉の ひとつが、半開きだ。\n着替えを 済ませ、今日の 相棒を 選ぶ。\n床に ドライバーと スポーツドリンクが 置いてある。',
+      items:['相棒ドライバー','スポーツドリンク'],
+      exits:[{dir:'先',to:'clubhouse',label:'先：クラブハウスへ'}],
+      talk:'岩田君「ロッカーは 準備の 場や。忘れ物 ないか?」\n高林君「クラブ選びで 半分 決まる。慎重にな」',
+    },
+    clubhouse:{
+      name:'クラブハウス',
+      desc:'クラブハウス。受付の 向こうに スタートホールが 見える。\nソファの 上に パターと、見覚えのある ボールが ひとつ。\nキャディが「そろそろ お時間です」と 微笑む。',
+      items:['お気に入りパター','優勝記念ボール'],
+      exits:[{dir:'外',to:'tee',label:'外：ティーグラウンドへ'}],
+      talk:'佐藤さん「スタート前の コーヒー、これが ええんや」\n高林君「その ボール…やらまい会で 優勝した ときの やつや」',
+    },
+    tee:{
+      name:'1番 ティーグラウンド',
+      desc:'1番 ティーグラウンド。まっすぐ 伸びる フェアウェイ。\nだが 右は OB、左は 林。最初の 一打が 肝心だ。',
+      enemy:'ob',
+      exits:[{dir:'進',to:'fairway',label:'進む：フェアウェイへ', needClear:true}],
+      talk:'岩田君「朝イチの ティーショット、力むなよ?」\nミヤカワくん「方向性 第一。ど真ん中で ええ」',
+    },
+    fairway:{
+      name:'フェアウェイ',
+      desc:'フェアウェイ センター、残り 150ヤード。\nグリーンの 手前に 大きな 池が 口を 開けている。\n届かせるか、刻むか——番手選びの 勝負だ。',
+      enemy:'fairway',
+      exits:[{dir:'進',to:'green',label:'進む：グリーンへ', needClear:true}],
+      talk:'高林君「無理は 禁物。確実に 乗せていこ」\n佐藤さん「池 見えとるな? 刻む 勇気やで」',
+    },
+    green:{
+      name:'グリーン',
+      desc:'グリーンオン。ピンまで 10メートルの 大曲がり ライン。\nここで 3パットは したくない。集中だ。',
+      enemy:'green',
+      boss:true,
+      exits:[{dir:'進',to:'cup',label:'カップへ', needClear:true}],
+      talk:'岩田君「3パットだけは あかん。タッチ 合わせよ」\nミヤカワくん「ラインは 読めた。あとは 振り切るだけ」',
+    },
+    cup:{
+      name:'カップイン',
+      desc:'',
+      exits:[],
+      ending:true,
+    },
+  },
+};
+
+/* ══════════════════════════════════════════════════════════
+   ▼▼▼ 編（WORLD）テーブル：ゲームの「定型フォーマット」 ▼▼▼
+   新しいゲームを作るときは、ここに 1つ WORLD オブジェクトを足すだけ。
+   エンジン（下のコード）は一切いじらず、中身（データ・セリフ・分岐）を差し替える。
+
+   【WORLD が持つもの（監査チェックリスト）】
+   ├ meta      : WEEK(週メタ) / metric(ゲージ名) / scoreMode('prod'|'golf')
+   ├ rules     : APPROACHES(コマンド=戦い方) / ENEMIES(敵) / ITEMS(道具)
+   ├ story     : SCENARIO(迷宮=部屋と分岐) / OWNER_HITOKOTO(勝利後のひとこと)
+   ├ 演出       : intro(導入) / guide(案内人) / twist(どんでん返し) / ending(結末)
+   └ 勝利処理    : onWin / bossCleared / kengeCleared / battleWon
+
+   【分岐条件は SCENARIO.rooms に宣言的に集約】（grepで監査できる）
+     exits[].needClear … その部屋をクリアするまで通れない
+     enemy             … 入室で戦闘（cleared_<room> がクリア記録）
+     boss:true         … 撃破で twist(どんでん返し)へ
+     ending:true       … 到達でエンディング
+     first:'guide'     … 初回だけ案内人イベント
+   ════════════════════════════════════════════════════════════ */
+
+/* ゴルフ：パー基準のスコア表示（E＝イーブン） */
+function golfScoreLabel(){
+  if(state.parDone===0) return 'E';
+  const n=state.strokes-state.parDone;
+  return n===0?'パー(E)':(n>0?'+'+n:''+n);
+}
+function golfEndingText(){
+  return 'ボールが カップの ふちを 一周して——\nカコンッ。\n吸い込まれるように、カップイン!\n\n'+
+    '1番ホール、スコア '+golfScoreLabel()+'。\n止まっていた 木曜が、かちりと 動き出した。\n\n'+
+    '佐藤さん「ナイスイン! やっぱ ゴルフは ええなぁ」\n岩田君「ナイスショット! 池 越えた瞬間 心臓 止まったわ」\n'+
+    '高林君「この調子や。やらまい会 40-43も、訓練の 甲斐やで」\nミヤカワくん「また来週、この木曜で 会おう」\n\n'+
+    '――そして、誰からともなく、ひとこと。\n「ええ ラウンドやった。……でも 明日 現場 行ったら、\n　ひとこと 言いたなる んやろなぁ」\n「「「わかる」」」\n\n'+
+    '経営者というのは、ゴルフ場でも つい 段取りと スコアを 気にする生き物だ。\nそれでも 木曜だけは、童心に かえって 球を 追う。\n\n約束戦士たちは、今日も 木曜日を 取り戻した。\n\n― ゴルフラウンド編 第'+GOLF_WEEK.no+'夜 おわり ―\n\n次回、また来週の木曜日に。';
+}
+
+/* ── 🏭 工場編 ─────────────────────────────────────── */
+const FACTORY = {
+  key:'factory', scoreMode:'prod', metric:'生産性',
+  WEEK, APPROACHES, OWNER_HITOKOTO, ENEMIES, ITEMS, SCENARIO,
+  intro:{ speaker:'システム', body:()=>
+    WEEK.title+'　'+WEEK.subtitle+'\nOHMAMA SOFT Adventure Series Vol.6\n\n'+
+    'いつもの約束ゴルフ訓練会。集まったのは——\n佐藤さん・岩田君・高林君・ミヤカワくん の4人。\n\n'+
+    'だが今日、木曜日が 迷宮に消えた。\n迷宮化した工場を脱出し、木曜の練習会＆反省会を 取り戻せ！\n\n'+
+    '操作：コマンド → たいしょう の2ステップ。\n敵には「経営的アプローチ」で立ち向かえ。' },
+  guide:{ x:250, sprite:(x,y)=>drawSponge(x,y,1.0,false), speaker:'スポンジマン',
+    body:'「……案内しよう。出口は、ずっと先だ」\n黄色い影が、迷宮の奥を指さした。' },
+  twist:{ sprite:(x,y)=>drawSponge(x,y,1.2,false), nextBattle:'kenge', lines:[
+    {speaker:'スポンジマン',cls:'npc',body:'「よくぞ ここまで来た。木曜は すぐそこだ」\nずっと道案内をしてくれた スポンジマンが、にやりと笑った。'},
+    {speaker:'???',cls:'twist',body:'「……だが、ひとつ 教えておこう」'} ] },
+  ending:{ room:'rooftop', bg:'rooftop', title:'【ENDING】木曜の練習場', label:'屋上（木曜の練習場）',
+    footer:'― おわり ― リロードでもう一度遊べます ／ また来週木曜に新ステージ！',
+    body:()=>
+      '階段を上りきると、そこは——雨上がりの屋上。\n雲の切れ間から 朝日がさし、止まっていた時計が かちりと動き出した。\n――木曜日が、帰ってきた。\n\n'+
+      '佐藤さん「間に合った…!　練習会だ!」\n岩田君「ナイスショット! 梅雨の晴れ間や!」\n'+
+      '佐藤さん「そや、高林君 やらまい会 優勝やってな。40-43!」\n高林君「へへ、毎週の 木曜訓練会の おかげや。訓練の 甲斐が あったわ」\n'+
+      'ミヤカワくん「山下美夢有に 負けてられん。また来週、この木曜で会おう」\n\n'+
+      '――そして、誰からともなく、ひとこと。\n「賞与の季節やけど……まあ、ええ仕事 してくれたしな」\n「「「わかる」」」\n\n'+
+      '経営者というのは、文句を言いながら、いちばん 現場に 報いたい生き物だ。\n言葉は ぶっきらぼうでも、その実、誰より 想っている。\n\n'+
+      '約束戦士たちは、今日も 木曜日を 取り戻した。\n\n― 第'+WEEK.no+'夜 おわり ―\n\n次回、また来週の木曜日に。' },
+  onWin:(e)=>{ state.prod=Math.min(100,state.prod+10); },
+  bossCleared:()=>'生産性が少し回復した。（+10）',
+  kengeCleared:()=>'すべての元凶を 倒した。\n屋上への階段を、一気に駆け上がる——',
+  battleWon:()=>'戦闘に勝利した！　生産性が10回復した。\nこの先へ進めるようになった。',
+};
+
+/* ── ⛳ ゴルフラウンド編 ───────────────────────────── */
+const GOLF = {
+  key:'golf', scoreMode:'golf', metric:'スコア',
+  WEEK:GOLF_WEEK, APPROACHES:GOLF_APPROACHES, OWNER_HITOKOTO:GOLF_HITOKOTO,
+  ENEMIES:GOLF_ENEMIES, ITEMS:GOLF_ITEMS, SCENARIO:GOLF_SCENARIO,
+  intro:{ speaker:'システム', body:()=>
+    GOLF_WEEK.title+'　'+GOLF_WEEK.subtitle+'\nOHMAMA SOFT Adventure Series\n\n'+
+    'いつもの 約束ゴルフ訓練会。今日の舞台は——\nねじれて 迷路のようになった ゴルフ場。\n\n'+
+    '佐藤さん・岩田君・高林君・ミヤカワくん の4人。\n約束の 1番ホールを 攻略し、カップインを 取り戻せ!\n\n'+
+    '操作：コマンド → たいしょう の2ステップ。\n各ショットは「クラブ選択」で 攻略。パー基準で スコアを 競え。' },
+  guide:{ x:250, sprite:(x,y)=>drawCaddy(x,y,1.0,false), speaker:'キャディ',
+    body:'「ようこそ いらっしゃいませ。\n　本日は ワタクシが ご案内します。さあ、こちらへ」\n緑の帽子の キャディが、にこやかに 一礼した。' },
+  twist:{ bg:'green', sprite:(x,y)=>drawCaddy(x,y,1.2,false), nextBattle:'kenge', lines:[
+    {speaker:'キャディ',cls:'npc',body:'「お見事な ホールアウト。\n　……ですが、ひとつ 言って おきたい ことが」\nにこやかな キャディの 影が、ゆらりと 伸びた。'},
+    {speaker:'???',cls:'twist',body:'「後ろの組が、お待ちですよ……」'} ] },
+  ending:{ room:'cup', bg:'cup', title:'【ENDING】1番ホール', label:'カップイン',
+    footer:'― おわり ― リロードで もう一度／タイトルで 編を えらび直せます',
+    body:()=>golfEndingText() },
+  onWin:(e)=>{ if(e.par) state.parDone+=e.par; },
+  bossCleared:()=>'2パットで ホールアウト!\n（このホール スコア '+golfScoreLabel()+'）',
+  kengeCleared:()=>'スロープレーの権化を 払いのけた!\nさあ、最後の カップインへ——',
+  battleWon:()=>'ナイスショット! 次の 地点へ 進めるぞ。\n（現在 スコア '+golfScoreLabel()+'）',
+};
+
+/* 編レジストリ（ここに足すだけで タイトルの選択肢に出る） */
+const WORLDS = { factory:FACTORY, golf:GOLF };
+const WORLD_MENU = [
+  {key:'factory', label:'🏭 工場編：木曜日の迷宮'},
+  {key:'golf',    label:'⛳ ゴルフラウンド編'},
+];
+let WORLD = FACTORY;   // 現在プレイ中の編
+function applyWorld(key){
+  WORLD = WORLDS[key] || FACTORY;
+  WEEK=WORLD.WEEK; APPROACHES=WORLD.APPROACHES; OWNER_HITOKOTO=WORLD.OWNER_HITOKOTO;
+  ENEMIES=WORLD.ENEMIES; ITEMS=WORLD.ITEMS; SCENARIO=WORLD.SCENARIO;
+  state.world=WORLD.key; state.scoreMode=WORLD.scoreMode;
+}
+
+/* ══════════════════════════════════════════════════════════
    状態
 ══════════════════════════════════════════════════════════ */
 const state = {
@@ -361,6 +583,11 @@ const state = {
   battle:null,
   ended:false,
   hitokotoIdx:0, // 経営者のひとこと ローテーション
+  world:'factory', // 'factory' | 'golf'
+  scoreMode:'prod',
+  strokes:0,     // ゴルフ：累計打数
+  parDone:0,     // ゴルフ：クリア済みセグメントのパー合計
+  golfShield:false, // ゴルフ：スポドリでミス1回帳消し
 };
 
 /* ══════════════════════════════════════════════════════════
@@ -502,6 +729,61 @@ function drawSponge(x,y,s,evil){ // スポンジマン（案内人→権化）
   if(evil){rect(x-R(6),y+R(10),R(2),R(4),'#111');rect(x+R(4),y+R(10),R(2),R(4),'#111');}
 }
 
+/* ── ⛳ ゴルフ編スプライト ── */
+function drawCaddy(x,y,s,evil){ // 案内キャディ（→スロープレーの権化）
+  s=s||1;const R=n=>Math.round(n*s);
+  const suit=evil?'#3a3a22':'#2a7a3a', cap=evil?'#181810':'#1a5a8a';
+  rect(x-R(10),y+R(20),R(20),R(26),suit);          // 制服
+  rect(x-R(11),y+R(18),R(7),R(5),'#fff');          // 肩タオル
+  rect(x-R(8),y+R(4),R(16),R(16),'#f0d2a8');       // 顔
+  rect(x-R(9),y-R(2),R(18),R(7),cap);rect(x-R(9),y+R(4),R(18),R(2),cap); // 帽子(サンバイザー)
+  rect(x-R(4),y+R(10),R(3),R(2),evil?'#f22':'#222');rect(x+R(2),y+R(10),R(3),R(2),evil?'#f22':'#222');
+  if(evil){rect(x-R(5),y+R(15),R(10),R(2),'#511');} else {rect(x-R(3),y+R(15),R(6),R(2),'#b07a4a');}
+  // キャディバッグ＋クラブ
+  rect(x+R(12),y+R(8),R(8),R(34),'#3a4452');
+  rect(x+R(13),y+R(2),R(2),R(10),'#bbb');rect(x+R(16),y+R(2),R(2),R(10),'#bbb');rect(x+R(19),y+R(2),R(2),R(10),'#bbb');
+  if(evil){ // もや
+    for(let i=0;i<5;i++)rect(x-R(16)+i*R(8),y+R(2)+(i%2?R(3):0),R(6),R(3),'rgba(120,120,90,.5)');
+  }
+}
+function drawOBStakes(x,y,s){ // OB杭＋林（ティーショットの誘惑）
+  s=s||1;const R=n=>Math.round(n*s);
+  rect(x-R(44),y+R(8),R(14),R(34),'#1a3a1a');rect(x+R(30),y+R(8),R(14),R(34),'#1a3a1a'); // 左右の林
+  for(const dx of [-22,0,22]){rect(x+R(dx)-R(2),y+R(8),R(5),R(34),'#eee');rect(x+R(dx)-R(2),y+R(8),R(5),R(6),'#d33');} // 白杭
+  rect(x-R(16),y-R(10),R(32),R(13),'#fff');rect(x-R(13),y-R(7),R(26),R(7),'#c22'); // OBプレート
+}
+function drawWaterHazard(x,y,s){ // 池越え2打目
+  s=s||1;const R=n=>Math.round(n*s);
+  rect(x-R(36),y+R(18),R(72),R(26),'#2a6abf'); // 池
+  for(let i=0;i<6;i++)rect(x-R(30)+i*R(12),y+R(22)+(i%2?R(4):0),R(8),R(2),'#9cd0ff'); // 波
+  rect(x-R(34),y+R(8),R(4),R(14),'#e33');rect(x+R(30),y+R(8),R(4),R(14),'#e33'); // 赤杭
+  rect(x+R(2),y-R(16),R(2),R(26),'#ccc');rect(x+R(4),y-R(16),R(12),R(8),'#e33'); // 奥のピン
+  circle(x-R(20),y+R(12),R(3),'#fff'); // ボール
+}
+function drawPuttFoe(x,y,s){ // 魔のロングパット
+  s=s||1;const R=n=>Math.round(n*s);
+  rect(x+R(20),y-R(12),R(2),R(44),'#ccc');rect(x+R(22),y-R(12),R(14),R(9),'#e33'); // ピン
+  rect(x+R(15),y+R(28),R(13),R(5),'#111'); // カップ
+  for(let i=0;i<7;i++)rect(x-R(22)+i*R(7),y+R(30)-Math.round(Math.sin(i*0.9)*R(5)),R(3),R(2),'#fff'); // 曲がりライン
+  circle(x-R(22),y+R(30),R(3),'#fff'); // ボール
+  rect(x-R(12),y-R(4),R(20),R(20),'rgba(180,160,220,.45)'); // もや(3パットの主)
+  circle(x-R(4),y+R(4),R(2),'#a050f0');circle(x+R(4),y+R(4),R(2),'#a050f0');
+}
+function drawTitleSplash(){ // 編セレクトの背景
+  cls('#0a0a14');
+  rect(0,40,W,92,'#15152a');
+  rect(28,72,38,58,'#33334a');rect(74,84,28,46,'#33334a');rect(250,58,8,72,'#33334a'); // 工場シルエット
+  rect(0,140,W,H-140,'#1a3a1a');                       // グリーン
+  for(let i=0;i<36;i++)rect((i*9)%W,142+(i*7)%36,2,4,'#2a6a2a');
+  rect(268,116,2,32,'#ccc');rect(270,116,14,8,'#e33'); // ピンフラッグ
+  circle(116,176,4,'#fff');                            // ボール
+  ctx.fillStyle='#ffe27a';ctx.font='16px monospace';ctx.textAlign='center';
+  ctx.fillText('OHMAMA SOFT',160,26);
+  ctx.fillStyle='#c9a0ff';ctx.font='10px monospace';ctx.fillText('ADVENTURE SERIES',160,118);
+  ctx.textAlign='left';
+  frame();
+}
+
 /* ── 部屋ごとの背景 ── */
 function drawRoomBG(id){
   switch(id){
@@ -558,6 +840,64 @@ function drawRoomBG(id){
       // ピンフラッグ
       rect(270,90,2,60,'#ccc');rect(272,90,16,10,'#e33');
       break;
+    /* ── ⛳ ゴルフ編の背景 ── */
+    case 'arrival':
+      cls('#7ec0ff'); rect(0,0,W,90,'#9ad0ff');                     // 空
+      rect(0,150,W,H-150,'#3a3a44');                                // 駐車場アスファルト
+      for(let i=0;i<5;i++)rect(20+i*60,160,40,2,'#ddd');            // 駐車枠
+      rect(60,70,200,80,'#cdbfa0');rect(60,62,200,12,'#8a6a3a');    // クラブハウス
+      rect(80,90,30,30,'#5a78a0');rect(150,90,30,30,'#5a78a0');rect(210,90,30,30,'#5a78a0'); // 窓
+      rect(150,120,24,30,'#6a4a2a');                                // 入口
+      circle(280,40,16,'#fff8d0');                                  // 太陽
+      break;
+    case 'locker':
+      cls('#1a2230'); rect(0,0,W,150,'#23304a');
+      for(let c=0;c<5;c++){rect(14+c*60,40,50,110,'#3a4a64');rect(18+c*60,44,42,52,'#46587a');rect(18+c*60,98,42,48,'#46587a');rect(54+c*60,70,4,4,'#ccc');rect(54+c*60,124,4,4,'#ccc');}
+      rect(20+60,98,42,48,'#5a6e92');                               // 半開きの扉
+      rect(0,150,W,H-150,'#2a2a34');                                // 床
+      break;
+    case 'clubhouse':
+      cls('#241a30'); rect(0,0,W,150,'#2e2440');
+      rect(40,30,150,80,'#7ec0ff');rect(44,34,142,72,'#abe0ff');    // 窓(コース)
+      rect(44,80,142,26,'#3a8a3a');rect(150,40,2,40,'#ccc');rect(152,40,12,7,'#e33'); // 窓の外のグリーン＆ピン
+      rect(210,60,80,40,'#7a4a2a');rect(214,64,72,32,'#a0703a');    // 受付
+      rect(40,120,90,26,'#5a4a6a');                                 // ソファ
+      rect(0,150,W,H-150,'#3a2e22');
+      break;
+    case 'tee':
+      cls('#8ecaff'); rect(0,0,W,80,'#aee0ff');
+      rect(0,120,W,H-120,'#2a7a32');                                // フェアウェイ
+      rect(110,118,100,18,'#4a9a4a');                               // 奥のグリーン
+      rect(0,150,W,40,'#3a8a3a');                                   // ティー手前
+      rect(150,150,20,8,'#6a4a2a');rect(156,148,8,4,'#fff');        // ティーマーク＆ボール
+      rect(40,40,12,30,'#1a5a1a');rect(46,30,12,24,'#2a7a2a');      // 木
+      rect(270,44,12,30,'#1a5a1a');rect(276,34,12,24,'#2a7a2a');
+      break;
+    case 'fairway':
+      cls('#8ecaff'); rect(0,0,W,70,'#aee0ff');
+      rect(0,110,W,H-110,'#2a7a32');                                // フェアウェイ
+      rect(90,98,140,14,'#4a9a4a');                                 // 奥のグリーン
+      rect(150,70,2,30,'#ccc');rect(152,70,12,7,'#e33');            // ピン
+      rect(40,150,72,28,'#2a6abf');                                 // 池の縁
+      circle(150,160,4,'#fff');                                     // ボール(自分)
+      break;
+    case 'green':
+      cls('#9ad0ff'); rect(0,0,W,60,'#bfe6ff');
+      rect(0,60,W,H-60,'#3a9a42');                                  // グリーン全面
+      circle(160,140,90,'#46aa4e');                                 // 一段濃いグリーン
+      rect(210,50,2,70,'#ccc');rect(212,50,16,9,'#e33');            // ピン
+      rect(204,116,14,5,'#111');                                    // カップ
+      break;
+    case 'cup':
+      cls('#1a2a4a');
+      rect(0,0,W,120,'#24406a');rect(0,0,W,60,'#2a4e80');
+      rect(0,90,W,40,'#e88a4a');rect(0,110,W,30,'#f0a860');         // 朝焼け
+      circle(160,120,30,'#ffdd88');                                 // 朝日
+      rect(0,150,W,H-150,'#2a7a32');                                // グリーン
+      rect(170,70,3,82,'#ddd');rect(173,70,18,11,'#e33');           // ピン
+      rect(150,148,18,7,'#111');                                    // カップ
+      circle(158,151,3,'#fff');                                     // カップインしたボール
+      break;
     default: drawCorridor('#2a2a3a','#1a1a26','#3a3a48');
   }
 }
@@ -572,8 +912,16 @@ function drawBattleScene(){
   drawRoomBG(state.loc);
   // 敵を中央に大きく
   const ex=160,ey=70;
-  ({sagyo:drawSagyo,gaichu:drawGaichu,customer:drawCustomer,boss:drawDragon}[b.key]
-    || (b.key==='kenge'?((x,y)=>drawSponge(x,y,1.3,true)):drawCustomer))(ex,ey,b.key==='boss'?1.0:1.4);
+  const SPR={sagyo:drawSagyo,gaichu:drawGaichu,customer:drawCustomer,boss:drawDragon,
+             ob:drawOBStakes,fairway:drawWaterHazard,green:drawPuttFoe};
+  let fn=SPR[b.key];
+  if(!fn){
+    if(b.key==='kenge') fn = state.world==='golf'
+      ? (x,y)=>drawCaddy(x,y,1.2,true)
+      : (x,y)=>drawSponge(x,y,1.3,true);
+    else fn=drawCustomer;
+  }
+  fn(ex,ey, b.key==='boss'?1.0:1.4);
   // パーティ（手前・小さめ）
   drawParty();
   frame();
@@ -625,8 +973,15 @@ function setStatus(){
   const room=SCENARIO.rooms[state.loc];
   document.getElementById('stLoc').textContent=room.name;
   document.getElementById('sceneLabel').textContent=room.name;
-  document.getElementById('stProd').textContent=state.prod;
   const g=document.getElementById('gaugeFill');
+  document.getElementById('stMetric').textContent=WORLD.metric;
+  if(state.scoreMode==='golf'){
+    document.getElementById('stProd').textContent=golfScoreLabel();
+    g.style.width=Math.min(100,(state.parDone/4)*100)+'%';   // 1番ホール(パー4)の進行
+    g.className='gauge-fill';
+    return;
+  }
+  document.getElementById('stProd').textContent=state.prod;
   g.style.width=Math.max(0,state.prod)+'%';
   g.className='gauge-fill'+(state.prod<=30?' low':state.prod<=60?' mid':'');
 }
@@ -640,8 +995,9 @@ function cleared(room){return state.flags['cleared_'+room];}
 const EXPLORE_CMDS=['みる','すすむ','しらべる','はなす','つかう','もちもの'];
 function renderCmdPanel(){
   const panel=document.getElementById('cmdPanel');
-  const cmds = state.mode==='battle' ? ['たたかう','つかう','もちもの'] : EXPLORE_CMDS;
-  document.getElementById('cmdLabel').textContent = state.mode==='battle'?'BATTLE':'COMMAND';
+  const battleCmds = state.world==='golf' ? ['ショット','つかう','もちもの'] : ['たたかう','つかう','もちもの'];
+  const cmds = state.mode==='battle' ? battleCmds : EXPLORE_CMDS;
+  document.getElementById('cmdLabel').textContent = state.mode==='battle'?(state.world==='golf'?'SHOT':'BATTLE'):'COMMAND';
   panel.querySelectorAll('.cmd-item').forEach(e=>e.remove());
   cmds.forEach(c=>{
     const d=document.createElement('div');d.className='cmd-item';d.dataset.cmd=c;d.textContent=c;
@@ -670,7 +1026,7 @@ function getTargets(verb){
     if(state.inventory.length===0) return [{key:'__none__',label:'もちものがない'}];
     return state.inventory.map(i=>({key:'use:'+i,label:i}));
   }
-  if(verb==='たたかう') return APPROACHES.map(a=>({key:'app:'+a,label:a}));
+  if(verb==='たたかう'||verb==='ショット') return APPROACHES.map(a=>({key:'app:'+a,label:a}));
   return [{key:'__none__',label:'－'}];
 }
 function renderTargets(verb){
@@ -678,7 +1034,7 @@ function renderTargets(verb){
   document.querySelectorAll('.cmd-item').forEach(el=>el.classList.toggle('selected',el.dataset.cmd===verb));
   const panel=document.getElementById('targetPanel');panel.innerHTML='';
   const lbl=document.createElement('div');lbl.className='target-label';
-  lbl.textContent='▶ 【'+verb+'】 '+(verb==='たたかう'?'アプローチを えらべ':'えらんでください');
+  lbl.textContent='▶ 【'+verb+'】 '+((verb==='たたかう'||verb==='ショット')?(state.world==='golf'?'クラブを えらべ':'アプローチを えらべ'):'えらんでください');
   panel.appendChild(lbl);
   getTargets(verb).forEach(t=>{
     if(t.key==='__none__'){const s=document.createElement('span');s.className='target-label';s.style.color='#555';s.textContent=t.label;panel.appendChild(s);return;}
@@ -715,6 +1071,8 @@ function doInventory(){
   show('もちもの', state.inventory.join('、')+'\n\n'+state.inventory.map(i=>'・'+i+'：'+ITEMS[i].desc).join('\n'),'sys',()=>resetPanel());
 }
 function doTalk(){
+  const room=SCENARIO.rooms[state.loc];
+  if(room.talk) return show('仲間たち', room.talk, 'npc', ()=>resetPanel());
   const lines = {
     entrance:'佐藤さん「おい、今日って木曜だよな…？　練習会あるぞ」\nミヤカワくん「その木曜が、迷宮のどこかに消えてる。取り戻すぞ」',
     press:'高林君「敵が出ても慌てるな。"経営的アプローチ"で対処だ」',
@@ -731,6 +1089,16 @@ function doTakeItem(it){
   show('システム','「'+it+'」を手に入れた！\n'+ITEMS[it].desc,'ok',()=>{setStatus();resetPanel();});
 }
 function doUse(it){
+  if(state.world==='golf'){
+    if(it==='スポーツドリンク'){
+      state.inventory=state.inventory.filter(x=>x!==it);
+      state.golfShield=true;
+      return show('システム','スポーツドリンクを 飲んだ!\n集中が 戻った。次の1打の ミスを 1回 帳消しにする。','ok',()=>{setStatus();resetPanel();});
+    }
+    if(it==='優勝記念ボール')
+      return show(PARTY[2],'「やらまい会 40-43の 球や。…落ち着いて いこ」\n少し 心が 静まった。','ok',()=>resetPanel());
+    return show('システム','『'+it+'』は ショットの ときに 自動で 力を 発揮する。','hint',()=>resetPanel());
+  }
   if(it==='エナジードリンク'){
     state.inventory=state.inventory.filter(x=>x!==it);
     state.prod=Math.min(100,state.prod+30);
@@ -777,10 +1145,11 @@ function startBattle(enemyKey){
   });
 }
 function promptApproach(){
-  // 自動でたたかうを開いてアプローチ選択へ誘導
-  renderTargets('たたかう');
+  // 自動でたたかう/ショットを開いて選択へ誘導
+  renderTargets(state.world==='golf'?'ショット':'たたかう');
 }
 function doApproach(app){
+  if(state.world==='golf') return golfShot(app);
   const b=state.battle, e=ENEMIES[b.key];
   // アイテムによる確定効果
   const boostKaizen = hasItem('カイゼン提案書') && app==='カイゼン';
@@ -807,23 +1176,61 @@ function doApproach(app){
     show('いまひとつ…', e.hitNg+'\n生産性が'+dmg+'下がった。（残り'+state.prod+'）', 'danger', ()=>{ resetPanel(); promptApproach(); });
   }
 }
+/* ⛳ ゴルフ：1ショット＝クラブ選択。正しいクラブで前進、ミスは打数ロス（池はペナルティ） */
+function golfShot(app){
+  const b=state.battle, e=ENEMIES[b.key];
+  const isKenge = b.key==='kenge';   // 権化戦＝メンタル戦（打数に数えない）
+  const boostDrv = hasItem('相棒ドライバー')  && app==='ドライバー' && e.weak.includes('ドライバー');
+  const boostPtr = hasItem('お気に入りパター') && app==='パター'     && e.weak.includes('パター');
+  let good = e.weak.includes(app) || boostDrv || boostPtr;
+  if(good && e.needAll && b.used.includes(app)) good=false;
+
+  if(!isKenge) state.strokes++;       // 1打 消費
+  if(good){
+    b.残--; b.used.push(app);
+    const extra=(boostDrv||boostPtr)?'\n（マイクラブで ばっちり!）':'';
+    if(b.残<=0){ drawBattleScene(); setStatus();
+      return show(e.name, e.hitOk+extra+'\n\n'+e.win, 'ok', ()=>winBattle()); }
+    setStatus();
+    const need = e.needAll ? '別のクラブで 畳みかけろ!（残り'+b.残+'）' : 'もう一押し!（残り'+b.残+'）';
+    return show('ナイスショット!', e.hitOk+extra+'\n'+need, 'ok', ()=>{ resetPanel(); promptApproach(); });
+  }
+  // ミス
+  let pen='';
+  if(!isKenge){
+    if(state.golfShield){ state.golfShield=false; state.strokes--; pen='\n（スポーツドリンクで ミスを 帳消し!）'; }
+    else if(b.key==='fairway'){ state.strokes++; pen='\n池ポチャ! ペナルティ 1打。'; }
+  }
+  setStatus();
+  show('いまひとつ…', e.hitNg+pen, 'danger', ()=>{ resetPanel(); promptApproach(); });
+}
+
 function winBattle(){
-  const b=state.battle, key=b.key;
+  const b=state.battle, key=b.key, e=ENEMIES[key];
   state.flags['cleared_'+state.loc]=true;
-  state.prod=Math.min(100,state.prod+10); // 達成感
+  if(WORLD.onWin) WORLD.onWin(e);              // 編ごとのスコア更新（生産性+10／パー加算）
   state.mode='explore'; state.battle=null;
   renderCmdPanel(); drawExplore(); setStatus();
-
-  // ボス撃破 → 大どんでん返しへ
-  if(key==='boss'){
-    return show('システム','生産性が少し回復した。（+10）','ok',()=>twistSequence());
-  }
-  // 権化（最終戦）撃破 → エンディングへ
+  // 分岐：①権化（最終戦）→エンディング ②ボス部屋→どんでん返し ③通常→ひとこと
   if(key==='kenge'){
-    state.loc='rooftop';
-    return show('システム','すべての元凶を 倒した。\n屋上への階段を、一気に駆け上がる——','ok',()=>triggerEnding());
+    state.loc=WORLD.ending.room;
+    return show('システム', WORLD.kengeCleared(), 'ok', ()=>triggerEnding());
   }
-  show('システム','戦闘に勝利した！　生産性が10回復した。\nこの先へ進めるようになった。','ok',()=>ownerHitokoto(()=>resetPanel()));
+  if(SCENARIO.rooms[state.loc].boss){
+    return show('システム', WORLD.bossCleared(), 'ok', ()=>runTwist());
+  }
+  show('システム', WORLD.battleWon(), 'ok', ()=>ownerHitokoto(()=>resetPanel()));
+}
+
+/* どんでん返し：案内人 → 正体（権化）戦。演出は WORLD.twist に定義 */
+function runTwist(){
+  const t=WORLD.twist;
+  drawRoomBG(t.bg||state.loc); drawParty(); t.sprite(160,72); frame();
+  (function step(i){
+    if(i>=t.lines.length){ state.mode='battle'; return startBattle(t.nextBattle); }
+    const ln=t.lines[i];
+    show(ln.speaker, ln.body, ln.cls||'npc', ()=>step(i+1));
+  })(0);
 }
 
 /* 経営者は、ねぎらいつつ結局ひとこと添えてしまう（勝利のたびにローテーション） */
@@ -843,62 +1250,66 @@ function gameOver(){
 }
 
 /* ══════════════════════════════════════════════════════════
-   大どんでん返し → 最終戦 → エンディング
+   エンディング（演出は WORLD.ending に定義）
 ══════════════════════════════════════════════════════════ */
-function twistSequence(){
-  // 案内人スポンジマンが現れて……
-  drawRoomBG(state.loc);drawParty();
-  drawSponge(160,70,1.2,false);frame();
-  show('スポンジマン','「よくぞ ここまで来た。木曜は すぐそこだ」\nずっと道案内をしてくれた スポンジマンが、にやりと笑った。','npc',()=>{
-    show('???','「……だが、ひとつ 教えておこう」','twist',()=>{
-      state.mode='battle';
-      startBattle('kenge');
-    });
-  });
-}
-
 function triggerEnding(){
   if(state.ended) return;
   state.ended=true;
-  drawRoomBG('rooftop');drawParty();frame();
-  document.getElementById('sceneLabel').textContent='屋上（木曜の練習場）';
+  const en=WORLD.ending;
+  drawRoomBG(en.bg); drawParty(); frame();
+  document.getElementById('sceneLabel').textContent=en.label;
   document.querySelectorAll('.cmd-item').forEach(el=>el.style.pointerEvents='none');
-  const text =
-    '階段を上りきると、そこは——雨上がりの屋上。\n雲の切れ間から 朝日がさし、止まっていた時計が かちりと動き出した。\n――木曜日が、帰ってきた。\n\n'+
-    '佐藤さん「間に合った…!　練習会だ!」\n岩田君「ナイスショット! 梅雨の晴れ間や!」\n'+
-    '佐藤さん「そや、高林君 やらまい会 優勝やってな。40-43!」\n高林君「へへ、毎週の 木曜訓練会の おかげや。訓練の 甲斐が あったわ」\n'+
-    'ミヤカワくん「山下美夢有に 負けてられん。また来週、この木曜で会おう」\n\n'+
-    '――そして、誰からともなく、ひとこと。\n'+
-    '「賞与の季節やけど……まあ、ええ仕事 してくれたしな」\n'+
-    '「「「わかる」」」\n\n'+
-    '経営者というのは、文句を言いながら、いちばん 現場に 報いたい生き物だ。\n言葉は ぶっきらぼうでも、その実、誰より 想っている。\n\n'+
-    '約束戦士たちは、今日も 木曜日を 取り戻した。\n\n― 第'+WEEK.no+'夜 おわり ―\n\n次回、また来週の木曜日に。';
-  show('【ENDING】木曜の練習場', text, 'ending', ()=>{
-    document.getElementById('targetPanel').innerHTML='<div class="target-label">― おわり ― リロードでもう一度遊べます ／ また来週木曜に新ステージ！</div>';
+  show(en.title, en.body(), 'ending', ()=>{
+    document.getElementById('targetPanel').innerHTML='<div class="target-label">'+en.footer+'</div>';
   });
 }
 
 /* ══════════════════════════════════════════════════════════
-   初期化
+   初期化：タイトルで「編」を選ぶ → その編で開始
 ══════════════════════════════════════════════════════════ */
 function init(){
-  document.getElementById('hdrVol').textContent='Vol.6 '+WEEK.title+'  第'+WEEK.no+'夜';
-  renderCmdPanel();
-  drawExplore();setStatus();
-  show('システム',
-    WEEK.title+'　'+WEEK.subtitle+'\nOHMAMA SOFT Adventure Series Vol.6\n\n'+
-    'いつもの約束ゴルフ訓練会。集まったのは——\n佐藤さん・岩田君・高林君・ミヤカワくん の4人。\n\n'+
-    'だが今日、木曜日が 迷宮に消えた。\n迷宮化した工場を脱出し、木曜の練習会＆反省会を 取り戻せ！\n\n'+
-    '操作：コマンド → たいしょう の2ステップ。\n敵には「経営的アプローチ」で立ち向かえ。',
-    'sys', ()=>{
-      // 案内人スポンジマン登場
-      drawRoomBG('entrance');drawParty();drawSponge(250,70,1.0,false);frame();
-      show('スポンジマン','「……案内しよう。出口は、ずっと先だ」\n黄色い影が、迷宮の奥を指さした。','npc',()=>{
-        state.flags.guideMet=true;resetPanel();
-      });
-    });
+  if(/Line\//i.test(navigator.userAgent)) document.getElementById('lineBanner').classList.add('show');
+  chooseWorld();
 }
-if(/Line\//i.test(navigator.userAgent)) document.getElementById('lineBanner').classList.add('show');
+/* タイトル：WORLD_MENU を並べて 編を選ばせる */
+function chooseWorld(){
+  document.getElementById('hdrVol').textContent='OHMAMA SOFT Adventure';
+  document.getElementById('cmdLabel').textContent='SELECT';
+  document.querySelectorAll('.cmd-item').forEach(e=>e.remove());
+  drawTitleSplash();
+  document.getElementById('stLoc').textContent='タイトル';
+  document.getElementById('sceneLabel').textContent='タイトル';
+  const spk=document.getElementById('txSpk'), body=document.getElementById('txBody');
+  spk.textContent='OHMAMA SOFT'; body.className='text-body sys';
+  body.textContent='いらっしゃい。今夜は どちらで 遊びますか?\n\n🏭 工場編 … 迷宮化した工場を 脱出せよ\n⛳ ゴルフ編 … 約束の1番ホールを 攻略せよ';
+  const panel=document.getElementById('targetPanel');
+  panel.innerHTML='<div class="target-label">▶ シリーズを えらんでください</div>';
+  WORLD_MENU.forEach(m=>{
+    const btn=document.createElement('button');btn.className='tgt-btn';btn.textContent=m.label;
+    btn.onclick=()=>startWorld(m.key);panel.appendChild(btn);
+  });
+}
+/* 選んだ編で 状態を初期化して開始 */
+function startWorld(key){
+  applyWorld(key);
+  Object.assign(state,{loc:SCENARIO.start,prod:100,inventory:[],flags:{},mode:'explore',
+    battle:null,ended:false,hitokotoIdx:0,strokes:0,parDone:0,golfShield:false});
+  document.getElementById('hdrVol').textContent=(key==='factory'?'Vol.6 ':'')+WEEK.title+'　第'+WEEK.no+'夜';
+  renderCmdPanel(); drawExplore(); setStatus();
+  runIntro();
+}
+/* 導入 → 案内人（初回イベント）。演出は WORLD.intro / WORLD.guide に定義 */
+function runIntro(){
+  const w=WORLD;
+  show(w.intro.speaker, w.intro.body(), 'sys', ()=>{
+    drawRoomBG(SCENARIO.start); drawParty();
+    if(w.guide){
+      w.guide.sprite(w.guide.x,70); frame();
+      return show(w.guide.speaker, w.guide.body, 'npc', ()=>{ state.flags.guideMet=true; resetPanel(); });
+    }
+    frame(); state.flags.guideMet=true; resetPanel();
+  });
+}
 init();
 </script>
 </body>
