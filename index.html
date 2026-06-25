@@ -407,7 +407,7 @@ const GOLF_ENEMIES = {
 };
 
 const GOLF_ITEMS = {
-  '相棒ドライバー':{ desc:'振り慣れた 一本。ティーショットで「ドライバー」が 必ず 決まる。' },
+  '本気のKsドライバー':{ desc:'高林君が 東京駅で 衝動買いした 銘品。本気の Ksドライバー。\nやらまい会 40-43を 呼んだ 一本。ティーショットで「ドライバー」が 必ず 決まる。' },
   'お気に入りパター':{ desc:'手に 馴染んだ パター。グリーンで「パター」が 必ず 決まる。' },
   'スポーツドリンク':{ desc:'つかうと 集中が 戻り、次の1打の ミスを 1回 帳消しにする。' },
   '優勝記念ボール':{ desc:'やらまい会 40-43 優勝の 記念球。持っているだけで 少し 落ち着く。' },
@@ -426,7 +426,7 @@ const GOLF_SCENARIO = {
     locker:{
       name:'ロッカールーム',
       desc:'ロッカールーム。まるで 日本代表選手が 帰った あとのように、\nどこも きれいに 整理整頓されている。\nゴミ ひとつ なく、扉の 列も ぴしりと そろう。\n（佐藤さん「これぞ 5Sの お手本やな……」）\n\n半開きの 扉の 奥、今日の 相棒を 選ぶ。\n床に ドライバーと スポーツドリンクが、行儀よく 置いてある。',
-      items:['相棒ドライバー','スポーツドリンク'],
+      items:['本気のKsドライバー','スポーツドリンク'],
       exits:[{dir:'先',to:'clubhouse',label:'先：クラブハウスへ'}],
       talk:'岩田君「ロッカーは 準備の 場や。忘れ物 ないか?」\n高林君「クラブ選びで 半分 決まる。慎重にな」',
     },
@@ -1182,7 +1182,7 @@ function doApproach(app){
 function golfShot(app){
   const b=state.battle, e=ENEMIES[b.key];
   const isKenge = b.key==='kenge';   // 権化戦＝メンタル戦（打数に数えない）
-  const boostDrv = hasItem('相棒ドライバー')  && app==='ドライバー' && e.weak.includes('ドライバー');
+  const boostDrv = hasItem('本気のKsドライバー')  && app==='ドライバー' && e.weak.includes('ドライバー');
   const boostPtr = hasItem('お気に入りパター') && app==='パター'     && e.weak.includes('パター');
   let good = e.weak.includes(app) || boostDrv || boostPtr;
   if(good && e.needAll && b.used.includes(app)) good=false;
