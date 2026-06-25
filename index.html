@@ -544,7 +544,7 @@ const GOLF = {
     '佐藤さん・岩田君・高林君・ミヤカワくん の4人。\n約束の 1番ホールを 攻略し、カップインを 取り戻せ!\n\n'+
     '操作：コマンド → たいしょう の2ステップ。\n各ショットは「クラブ選択」で 攻略。パー基準で スコアを 競え。' },
   guide:{ x:250, sprite:(x,y)=>drawCaddy(x,y,1.0,false), speaker:'キャディ',
-    body:'「ようこそ いらっしゃいませ。\n　本日は ワタクシが ご案内します。さあ、こちらへ」\n緑の帽子の キャディが、にこやかに 一礼した。' },
+    body:'「ようこそ いらっしゃいませ。\n　本日は ワタクシが ご案内します。さあ、こちらへ」\n黄色い スポンジ地の 制服を 着た キャディが、にこやかに 一礼した。' },
   twist:{ bg:'green', sprite:(x,y)=>drawCaddy(x,y,1.2,false), nextBattle:'kenge', lines:[
     {speaker:'キャディ',cls:'npc',body:'「お見事な ホールアウト。\n　……ですが、ひとつ 言って おきたい ことが」\nにこやかな キャディの 影が、ゆらりと 伸びた。'},
     {speaker:'???',cls:'twist',body:'「後ろの組が、お待ちですよ……」'} ] },
@@ -730,21 +730,23 @@ function drawSponge(x,y,s,evil){ // スポンジマン（案内人→権化）
 }
 
 /* ── ⛳ ゴルフ編スプライト ── */
-function drawCaddy(x,y,s,evil){ // 案内キャディ（→スロープレーの権化）
+function drawCaddy(x,y,s,evil){ // スポンジを着た案内キャディ（黄色）→ スロープレーの権化
   s=s||1;const R=n=>Math.round(n*s);
-  const suit=evil?'#3a3a22':'#2a7a3a', cap=evil?'#181810':'#1a5a8a';
-  rect(x-R(10),y+R(20),R(20),R(26),suit);          // 制服
-  rect(x-R(11),y+R(18),R(7),R(5),'#fff');          // 肩タオル
-  rect(x-R(8),y+R(4),R(16),R(16),'#f0d2a8');       // 顔
-  rect(x-R(9),y-R(2),R(18),R(7),cap);rect(x-R(9),y+R(4),R(18),R(2),cap); // 帽子(サンバイザー)
+  const sponge=evil?'#7a6a18':'#e8c430', hole=evil?'#3a3410':'#c09820', cap=evil?'#181810':'#1a5a8a';
+  // スポンジ地の制服（胴）＋気泡の穴
+  rect(x-R(11),y+R(18),R(22),R(28),sponge);
+  for(let i=0;i<4;i++)for(let j=0;j<2;j++)rect(x-R(8)+i*R(6),y+R(22)+j*R(9),R(3),R(3),hole);
+  rect(x-R(12),y+R(18),R(6),R(5),'#fff');          // 肩タオル
+  // 顔
+  rect(x-R(8),y+R(4),R(16),R(16),'#f0d2a8');
+  // キャディの帽子（サンバイザー）
+  rect(x-R(9),y-R(2),R(18),R(7),cap);rect(x-R(9),y+R(4),R(18),R(2),cap);
   rect(x-R(4),y+R(10),R(3),R(2),evil?'#f22':'#222');rect(x+R(2),y+R(10),R(3),R(2),evil?'#f22':'#222');
   if(evil){rect(x-R(5),y+R(15),R(10),R(2),'#511');} else {rect(x-R(3),y+R(15),R(6),R(2),'#b07a4a');}
   // キャディバッグ＋クラブ
   rect(x+R(12),y+R(8),R(8),R(34),'#3a4452');
   rect(x+R(13),y+R(2),R(2),R(10),'#bbb');rect(x+R(16),y+R(2),R(2),R(10),'#bbb');rect(x+R(19),y+R(2),R(2),R(10),'#bbb');
-  if(evil){ // もや
-    for(let i=0;i<5;i++)rect(x-R(16)+i*R(8),y+R(2)+(i%2?R(3):0),R(6),R(3),'rgba(120,120,90,.5)');
-  }
+  if(evil){ for(let i=0;i<5;i++)rect(x-R(16)+i*R(8),y+R(2)+(i%2?R(3):0),R(6),R(3),'rgba(120,110,40,.5)'); } // もや
 }
 function drawOBStakes(x,y,s){ // OB杭＋林（ティーショットの誘惑）
   s=s||1;const R=n=>Math.round(n*s);
