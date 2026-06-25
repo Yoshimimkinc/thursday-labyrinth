@@ -413,7 +413,7 @@ const GOLF_ENEMIES = {
 
 const GOLF_ITEMS = {
   '本気のKsドライバー':{ desc:'高林君が 東京駅で 衝動買いした 銘品。本気の Ksドライバー。\nやらまい会 40-43を 呼んだ 一本。ティーショットで「ドライバー」が 必ず 決まる。' },
-  'お気に入りパター':{ desc:'手に 馴染んだ パター。グリーンで「パター」が 必ず 決まる。' },
+  'ゼロトルクパター':{ desc:'今 話題の ゼロトルクパター。プロの 都麗華も 愛用。\nヘッドが ぶれず、グリーンで「パター」が 必ず 決まる。' },
   'スポーツドリンク':{ desc:'つかうと 集中が 戻り、次の1打の ミスを 1回 帳消しにする。' },
   '優勝記念ボール':{ desc:'やらまい会 40-43 優勝の 記念球。持っているだけで 少し 落ち着く。' },
 };
@@ -438,7 +438,7 @@ const GOLF_SCENARIO = {
     clubhouse:{
       name:'クラブハウス',
       desc:'ニューオレンジカンツリー倶楽部 クラブハウス。\n受付の 向こうに スタートホールが 見える。\nソファの 上に パターと、見覚えのある ボールが ひとつ。\nキャディが「そろそろ お時間です」と 微笑む。',
-      items:['お気に入りパター','優勝記念ボール'],
+      items:['ゼロトルクパター','優勝記念ボール'],
       exits:[{dir:'外',to:'tee',label:'外：ティーグラウンドへ'}],
       talk:'佐藤さん「スタート前の コーヒー、これが ええんや」\n高林君「その ボール…やらまい会で 優勝した ときの やつや」',
     },
@@ -1189,7 +1189,7 @@ function golfShot(app){
   const b=state.battle, e=ENEMIES[b.key];
   const isKenge = b.key==='kenge';   // 権化戦＝メンタル戦（打数に数えない）
   const boostDrv = hasItem('本気のKsドライバー')  && app==='ドライバー' && e.weak.includes('ドライバー');
-  const boostPtr = hasItem('お気に入りパター') && app==='パター'     && e.weak.includes('パター');
+  const boostPtr = hasItem('ゼロトルクパター') && app==='パター'     && e.weak.includes('パター');
   let good = e.weak.includes(app) || boostDrv || boostPtr;
   if(good && e.needAll && b.used.includes(app)) good=false;
 
