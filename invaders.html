@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>静岡インベーダー 経営防衛戦 — 木曜日の迷宮 Vol.6改</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{
+  height:100%;width:100%;
+  background:#04060c;
+  font-family:'Segoe UI','Hiragino Kaku Gothic ProN','MS Gothic',sans-serif;
+  overflow:hidden;overscroll-behavior:none;touch-action:none;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  display:flex;align-items:center;justify-content:center;
+}
+#wrap{
+  position:relative;height:100dvh;height:100vh;aspect-ratio:360/640;
+  max-width:100vw;background:#000;box-shadow:0 0 34px rgba(70,150,120,.30);
+}
+#g{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none;}
+@media (max-aspect-ratio:360/640){#wrap{height:auto;width:100vw;}}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="g" width="360" height="640"></canvas></div>
+<script>
+"use strict";
+/* =========================================================================
+   静岡インベーダー 経営防衛戦  —  木曜日の迷宮 Vol.6 改
+   OHMAMA SOFT Adventure Series / スペースインベーダー・オマージュ（淡々版）
+   単一HTML / バニラJS / 依存なし / スマホ縦持ち前提
+   -------------------------------------------------------------------------
+   芯：上から編隊で迫る「経営あるある」を、淡々と一列ずつ撃ち落とす。
+       ドラッグで砲台を左右に動かし、弾は自動で静かに発射。
+       敵は横行進→端で一段降下、数が減るほど行進が速くなる（インベーダーの緊張）。
+       トーチカ（標準化の壁）で守り、頭上を横切る"謎の円盤"＝スポンジマン。
+   世界観：約束戦士4人（佐藤/岩田/高林/ミヤカワ・全員経営者）で木曜を取り戻す。
+       敵＝経営あるある。大ボス＝納期ドラゴン。案内人スポンジマン＝生産性悪化の権化。
+   ========================================================================= */
+
+var W=360, H=640;
+var cv=document.getElementById('g');
+var cx=cv.getContext('2d');
+cx.imageSmoothingEnabled=false;
+
+/* =========================================================================
+   ★ バランス調整用 定数 ★
+   ========================================================================= */
+var TUNE={
+  PLAYER_EASE:  0.35,   // 砲台の追従（大きいほどキビキビ）
+  PLAYER_Y:     H-56,   // 砲台の高さ
+  FIRE_CD:      12,     // 自動発射の間隔（story重視＝早めに片付く）
+  BULLET_MAX:   4,      // 画面内の自弾上限
+  BULLET_SPD:   12,     // 弾速（速い＝行進する敵にも当たる／ミス減）
+  BOMB_SPD:     2.6,    // 敵爆弾の落下速度
+  STEP_X:       6,      // 一歩の横移動量
+  STEP_Y:       18,     // 端で降りる量
+  STEP_BASE:    34,     // 行進間隔の基準フレーム（満員時）
+  STEP_MIN:     6,      // 行進間隔の下限（残り僅か）
+  INVADE_Y:     TUNE_Y(),// 侵入ライン（超えたら陥落）
+  BOSS_HP:      16,     // 納期ドラゴン（短めに）
+  LIVES:        3,
+  INVULN:       90
+};
+function TUNE_Y(){ return H-96; }
+
+var PARTY=['佐藤さん','岩田君','高林君','ミヤカワくん'];
+
+/* ---- 勝利後のひとこと（各ウェーブ殲滅で4人ローテ・愛のある自虐） ---- */
+var HITOKOTO=[
+  {who:'佐藤さん',   line:'一列 片付いた。…まあ 段取り八分 やけどな'},
+  {who:'岩田君',     line:'よし 撃退。…報連相 だけは 頼むで'},
+  {who:'高林君',     line:'上出来。5Sは 裏切らんな'},
+  {who:'ミヤカワくん',line:'ナイス。気合の前に まず 標準化 や'},
+  {who:'佐藤さん',   line:'助かった。…つい 原価の話 してまう'},
+  {who:'岩田君',     line:'ええ守り。現場の声 拾えたら 満点や'},
+  {who:'高林君',     line:'最高や。ムリ・ムラ・ムダ 一個ずつ な'},
+  {who:'ミヤカワくん',line:'よし。結局は 人と段取りと 少しの執念や'}
+];
+var hitoIdx=0;
+function nextHitokoto(){ var h=HITOKOTO[hitoIdx%HITOKOTO.length]; hitoIdx++; return h; }
+
+/* =========================================================================
+   敵タイプ（経営あるある）— 行ごとに割り当てる
+   bmp: 2フレームのドット絵（"1"=塗り）／guchi=登場時の経営者の愚痴あるある
+   ========================================================================= */
+/* インベーダーは漢字「中」「金」がモチーフ＝今週の二大脅威。
+   中＝C国リスク（サイバー攻撃・地政学・絨毯爆撃）／金＝資本の圧力（コストダウン・資材高・ROIC・海外投資家） */
+var ETYPE={
+  kin:    { name:'資本の圧力「金」', col:'#ffe14d', score:140 },   // 金＝お金・資本
+  naka:   { name:'C国リスク「中」',  col:'#ff5a6e', score:120 },   // 中＝C国・地政学
+  money:  { name:'コストダウン（お金）', col:'#ffb14d', score:130 },// ¥コイン
+  work:   { name:'短納期・山積み（仕事）', col:'#8a7dff', score:200 },// 箱
+  quality:{ name:'クレーム・不良（品質）', col:'#ff7a9a', score:100 },// ×
+  demand: { name:'無茶な要求（要求）',   col:'#5ad0ff', score:120 } // ！
+};
+/* ドット絵（8x8・2フレーム）— 漢字「金」「中」＋ お金¥／仕事箱／品質×／要求！ を混在 */
+var BMP={
+  kin:[ /* 金 */
+    ["00011000","00111100","01100110","01111110","00011000","01111110","00111100","01000010"],
+    ["00011000","00111100","01100110","01111110","00011000","01111110","00111100","00100100"]],
+  naka:[ /* 中 */
+    ["00011000","00011000","01111110","01011010","01011010","01111110","00011000","00011000"],
+    ["00011000","00111100","01111110","01011010","01011010","01111110","00111100","00011000"]],
+  money:[ /* ¥コイン */
+    ["00111100","01000010","10100101","10011001","10111101","10011001","01000010","00111100"],
+    ["00111100","01100110","10100101","10011001","10111101","10011001","01100110","00111100"]],
+  work:[ /* 仕事の箱（十字テープ） */
+    ["11111111","10011001","10011001","11111111","11111111","10011001","10011001","11111111"],
+    ["11111111","10011001","10011001","11111111","11111111","10011001","10011001","11111110"]],
+  quality:[ /* 品質NG（×印） */
+    ["11000011","01100110","00111100","00011000","00011000","00111100","01100110","11000011"],
+    ["11000011","01100110","00100100","00011000","00011000","00100100","01100110","11000011"]],
+  demand:[ /* 要求（！吹き出し） */
+    ["01111110","11100111","11100111","11111111","11100111","11111111","01111110","00110000"],
+    ["01111110","11100111","11100111","11111111","11100111","11111111","01111110","00011000"]]
+};
+/* 各ウェーブ登場時の"経営者あるある"愚痴（型に依らず週替わり・最後は必ず自省で着地） */
+var WAVE_GUCHI=[
+  {who:'岩田君',   line:'クレームに 短納期、上から 降ってくるわ…\n…て、段取り 甘かったん 俺らやけどな。'},
+  {who:'ミヤカワくん',line:'冷食 大手が サイバー攻撃、C国の 仕業か…\n海外投資家は 資本効率 資本効率…\n"中"と"金"が 攻めてくる。…対策 後回しは 俺らや。'}
+];
+var CELL=2;              // ドット1つの描画サイズ
+var E_W=8*CELL, E_H=8*CELL;
+var COL_GAP=30, ROW_GAP=26;
+
+/* =========================================================================
+   状態
+   ========================================================================= */
+var mode='title';       // title/intro/play/boss/twist/clear/over/win
+var t=0;
+var score=0;
+var lives=TUNE.LIVES;
+var waveNo=0;
+var WAVE_TOTAL=2;   // story重視：シューティングは短く
+
+var player={x:W/2, alive:true, invuln:0};
+var targetX=W/2;
+var pointerActive=false;
+
+var bullets=[];         // 自弾 {x,y}
+var enemies=[];         // 編隊 {type,gx,gy,x,y,alive}
+var bombs=[];           // 敵爆弾 {x,y}
+var parts=[];           // 破片
+var bunkers=[];         // トーチカ
+var floaters=[];        // 浮遊テキスト
+var ufo=null;           // 頭上を横切るスポンジマン（謎の円盤）
+var boss=null;
+
+var dir=1;              // 編隊の進行方向
+var stepTimer=0;
+var stepMax=TUNE.STEP_BASE;
+var marchPhase=0;       // 行進の足音（0/1でアニメ切替）
+var marchTone=0;        // 4音サイクル
+var fireCd=0;
+var bombCd=90;
+var ufoCd=520;
+
+/* ダイアログ */
+var dlg=[]; var dlgActive=false;
+
+/* =========================================================================
+   オーディオ（WebAudio合成・素材なし）
+   ========================================================================= */
+var AUDIO={ctx:null,master:null,muted:false,on:false,noiseBuf:null};
+function initAudio(){
+  if(AUDIO.ctx){ try{ if(AUDIO.ctx.state==='suspended') AUDIO.ctx.resume(); }catch(e){} return; }
+  try{
+    var AC=(typeof window!=='undefined')&&(window.AudioContext||window.webkitAudioContext);
+    if(!AC) return;
+    AUDIO.ctx=new AC();
+    AUDIO.master=AUDIO.ctx.createGain();
+    AUDIO.master.gain.value=AUDIO.muted?0:0.30;
+    AUDIO.master.connect(AUDIO.ctx.destination);
+    var len=AUDIO.ctx.sampleRate*0.4;
+    var buf=AUDIO.ctx.createBuffer(1,len,AUDIO.ctx.sampleRate);
+    var d=buf.getChannelData(0);
+    for(var i=0;i<len;i++) d[i]=Math.random()*2-1;
+    AUDIO.noiseBuf=buf;
+    AUDIO.on=true;
+  }catch(e){ AUDIO.ctx=null; AUDIO.on=false; }
+}
+function toggleMute(){ AUDIO.muted=!AUDIO.muted; if(AUDIO.master){ try{ AUDIO.master.gain.value=AUDIO.muted?0:0.30; }catch(e){} } }
+function tone(freq,dur,type,vol,slideTo){
+  if(!AUDIO.on||AUDIO.muted||!AUDIO.ctx) return;
+  try{
+    var c=AUDIO.ctx,tt=c.currentTime;
+    var o=c.createOscillator(),g=c.createGain();
+    o.type=type||'square';
+    o.frequency.setValueAtTime(freq,tt);
+    if(slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(1,slideTo),tt+dur);
+    g.gain.setValueAtTime(0.0001,tt);
+    g.gain.exponentialRampToValueAtTime(vol||0.2,tt+0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001,tt+dur);
+    o.connect(g); g.connect(AUDIO.master);
+    o.start(tt); o.stop(tt+dur+0.02);
+  }catch(e){}
+}
+function noise(dur,vol,filtFreq,slideDown){
+  if(!AUDIO.on||AUDIO.muted||!AUDIO.ctx||!AUDIO.noiseBuf) return;
+  try{
+    var c=AUDIO.ctx,tt=c.currentTime;
+    var s=c.createBufferSource(); s.buffer=AUDIO.noiseBuf;
+    var f=c.createBiquadFilter(); f.type='lowpass';
+    f.frequency.setValueAtTime(filtFreq||1600,tt);
+    if(slideDown) f.frequency.exponentialRampToValueAtTime(Math.max(80,filtFreq*0.2),tt+dur);
+    var g=c.createGain();
+    g.gain.setValueAtTime(vol||0.3,tt);
+    g.gain.exponentialRampToValueAtTime(0.0001,tt+dur);
+    s.connect(f); f.connect(g); g.connect(AUDIO.master);
+    s.start(tt); s.stop(tt+dur+0.02);
+  }catch(e){}
+}
+/* SE */
+function sfxShot(){ tone(880,0.05,'square',0.05,1400); }
+function sfxHit(){ noise(0.14,0.20,1300,true); tone(200,0.10,'square',0.10,80); }
+function sfxBomb(){ tone(300,0.16,'sawtooth',0.09,90); }
+function sfxDamage(){ noise(0.3,0.30,900,true); tone(140,0.3,'square',0.14,50); }
+function sfxUfo(){ tone(660,0.10,'triangle',0.10,900); }
+/* インベーダー名物：4音の行進ビート（残数が減ると速くなる＝自動で速度が上がる）*/
+var MARCH=[92.5,82.4,73.4,61.7];
+function sfxMarch(){ tone(MARCH[marchTone%4],0.09,'square',0.14,MARCH[marchTone%4]*0.96); marchTone++; }
+
+/* =========================================================================
+   イントロ / どんでん返し / クリア ダイアログ
+   ========================================================================= */
+function startGame(){
+  resetAll();
+  mode='intro';
+  dlg=[
+    {who:'—', line:'木曜の 練習会が また 消えた。\n静岡の 空まで 迷宮化しとる。'},
+    {who:'高林君', line:'…お、岩田! 今日は お前の "復帰戦" やな。\n久しぶりの 木曜、みんな 待っとったで。'},
+    {who:'岩田君', line:'おう、ただいま! しばらく 抜けとったけど\n…やっぱ ここが 落ち着くわ。\nマツタケ砲、久々に 撃たせてもらうで。'},
+    {who:'佐藤さん', line:'SIZ電さんの 調達Bさん、\n"今期は 弱気です" て 説明行脚に\n来はってな…どこも 数字 読めん ご時世や。'},
+    {who:'岩田君', line:'コディマの 市議会議員まで\nサプライヤ 巡りに 来よった。\n地元 総出で ソワソワ しとる。'},
+    {who:'高林君', line:'ホルムズ海峡 また きな臭い…\n資材 高が また 来るかもや。\n…て、うちの 値決めも 甘いけどな。'},
+    {who:'ミヤカワくん', line:'冷食 大手が サイバー攻撃 食ろたらしい。\nうちの セキュリティ 大丈夫か…\n…対策 後回しに してたん 俺らや。'},
+    {who:'佐藤さん', line:'昨日は W杯 アルゼンチン 快勝!\nイングランドに 先制 されても\nフェルナンデスの ミドルで 追いついてな。'},
+    {who:'岩田君', line:'後半 アディショナルで ラ・マルティネスの\nヘディング 逆転! …夜中まで 見て\nまた 寝不足、生産性 ガタ落ちや。'},
+    {who:'ミヤカワくん', line:'…って 全部 言い訳やな。段取り 甘かったの 俺ら。\nこの "マツタケ砲"、キノコは しぶとさの 象徴や。\n何度 やられても 生える——願い 込めて 撃つで。'},
+    {who:'案内人?', line:'スポンジマン「ぼくが 上空から 見張って\nあげる…こっちが 近道さ(にゅる)」'}
+  ];
+  dlgActive=true;
+}
+function buildTwist(){
+  mode='twist';
+  bombs.length=0; enemies.length=0; ufo=null; boss=null;
+  dlg=[
+    {who:'スポンジマン', line:'ふふ…納期ドラゴンまで 落としたね。\nでも…気づいてた?'},
+    {who:'スポンジマン', line:'ぼくが 示した"近道"、ぜんぶ\nムダと 手待ちの 遠回り だったんだ。'},
+    {who:'佐藤さん', line:'…待てよ。あの 帰り道で\n"約束戦士砲" くれた あの 親切、\n全部 おかしかったんや…!'},
+    {who:'???', line:'頭上を 横切ってた 円盤が ぶよぶよと\n膨れ、¥と％の 目を ぎらつかせる——。'},
+    {who:'ROIC経営モンスター', line:'そう…ぼくの 正体は "ROIC経営モンスター"!\nその マツタケ砲…資本効率(ROIC)、低いよ?'},
+    {who:'佐藤さん', line:'なんでも 資本効率で 斬りよる…!\n海外投資家の 尻馬に 乗ってな。'},
+    {who:'ミヤカワくん', line:'資本の 論理も 大事。けど 現場の しぶとさも 立派な 資本や。\n——キノコの 意地、見せたるわ。決着 つけよ!'}
+  ];
+  dlgActive=true;
+}
+function buildClear(){
+  dlg=[
+    {who:'高林君', line:'…スポンジマンが 権化 やったとはな。\n生産性 悪化の 正体、しかと 見たで。'},
+    {who:'ミヤカワくん', line:'文句 ばっかり 言うてたけど、\n結局 いちばん 現場を 想ってたんは 俺らや。'},
+    {who:'岩田君', line:'…復帰 一発目で この 大立ち回りか。\nやっぱ 抜けられんわ、この 木曜は。'},
+    {who:'佐藤さん', line:'派手さは 要らん。淡々と 守り切った。\n岩田も 帰ってきた——木曜、取り戻したぞ。練習会 行こか!'}
+  ];
+  dlgActive=true;
+}
+function advanceDialog(){
+  dlg.shift();
+  if(dlg.length===0){
+    dlgActive=false;
+    if(mode==='intro'){ startWave(1); }
+    else if(mode==='twist'){ mode='win'; buildClear(); }
+    else if(mode==='win'){ /* エンディング画面へ（dlg空でwin継続） */ }
+    else if(mode==='wave'){ mode='play'; }
+  }
+}
+
+/* =========================================================================
+   セットアップ
+   ========================================================================= */
+function resetAll(){
+  t=0; score=0; lives=TUNE.LIVES; waveNo=0; hitoIdx=0;
+  player.x=W/2; player.alive=true; player.invuln=0; targetX=W/2;
+  bullets.length=0; enemies.length=0; bombs.length=0; parts.length=0;
+  floaters.length=0; ufo=null; boss=null;
+  dir=1; stepTimer=0; marchPhase=0; marchTone=0; fireCd=0; bombCd=90; ufoCd=520;
+  buildBunkers();
+}
+/* ウェーブごとの編隊構成（story重視で2ウェーブ・小型／中金＋4アイコン混在） */
+var WAVE_ROWS=[
+  ['naka','kin','quality'],          // wave1: 3行×4列＝12体
+  ['work','money','demand']          // wave2: 3行×4列＝12体
+];
+var WAVE_COLS=[4,4];
+function startWave(n){
+  waveNo=n;
+  var rows=WAVE_ROWS[n-1], cols=WAVE_COLS[n-1];
+  enemies.length=0; bombs.length=0; bullets.length=0;
+  dir=1; stepTimer=0; marchTone=0;
+  var gridW=(cols-1)*COL_GAP;
+  var x0=(W-gridW)/2;
+  var y0=88;
+  for(var r=0;r<rows.length;r++){
+    for(var c=0;c<cols;c++){
+      enemies.push({ type:rows[r], gx:c, gy:r,
+        x:x0+c*COL_GAP, y:y0+r*ROW_GAP, alive:true });
+    }
+  }
+  // 登場時の愚痴（週替わり・最後は自省で着地）
+  floaters.push({txt:'ウェーブ '+n+' / '+WAVE_TOTAL+'  編隊 接近',x:W/2,y:64,tt:110,col:'#9fe8ff',big:true});
+  mode='wave';
+  dlg=[ WAVE_GUCHI[(n-1)%WAVE_GUCHI.length] ];
+  dlgActive=true;
+}
+function buildBunkers(){
+  bunkers=[];
+  var n=3, bw=6, bh=4, cs=6;           // 6x4セル・1セル6px
+  var totalW=bw*cs;
+  var gap=(W-n*totalW)/(n+1);
+  var by=TUNE.PLAYER_Y-46;
+  for(var i=0;i<n;i++){
+    var bx=gap+i*(totalW+gap);
+    var cells=[];
+    for(var cy=0;cy<bh;cy++){
+      var row=[];
+      for(var cxx=0;cxx<bw;cxx++){
+        // 下辺中央をえぐった砦形
+        var carve=(cy>=bh-2 && cxx>=2 && cxx<=bw-3);
+        row.push(carve?0:2);           // hp2
+      }
+      cells.push(row);
+    }
+    bunkers.push({x:bx,y:by,cs:cs,bw:bw,bh:bh,cells:cells});
+  }
+}
+
+/* =========================================================================
+   入力
+   ========================================================================= */
+function canvasPos(ev){
+  var r=cv.getBoundingClientRect();
+  var px=(ev.touches?ev.touches[0].clientX:ev.clientX)-r.left;
+  var py=(ev.touches?ev.touches[0].clientY:ev.clientY)-r.top;
+  return { x:px*(W/r.width), y:py*(H/r.height) };
+}
+var BTN_MUTE={x:W-27,y:4,w:24,h:22};
+function inRect(p,r){ return p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h; }
+
+function onDown(ev){
+  ev.preventDefault();
+  initAudio();
+  var p=canvasPos(ev);
+  if(inRect(p,BTN_MUTE)){ toggleMute(); return; }
+  if(mode==='title'){ startGame(); return; }
+  if(dlgActive){ advanceDialog(); return; }
+  if(mode==='over'){ mode='title'; return; }
+  if(mode==='win' && dlg.length===0){ mode='title'; return; }
+  // プレイ中：ドラッグ移動
+  pointerActive=true; targetX=p.x;
+}
+function onMove(ev){
+  if(!pointerActive) return;
+  ev.preventDefault();
+  var p=canvasPos(ev); targetX=p.x;
+}
+function onUp(ev){ pointerActive=false; }
+cv.addEventListener('mousedown',onDown);
+cv.addEventListener('mousemove',onMove);
+window.addEventListener('mouseup',onUp);
+cv.addEventListener('touchstart',onDown,{passive:false});
+cv.addEventListener('touchmove',onMove,{passive:false});
+window.addEventListener('touchend',onUp,{passive:false});
+
+/* =========================================================================
+   更新
+   ========================================================================= */
+function update(){
+  t++;
+  // 浮遊テキスト減衰
+  for(var i=floaters.length-1;i>=0;i--){ floaters[i].tt--; if(floaters[i].tt<=0) floaters.splice(i,1); }
+  // 破片
+  for(var i=parts.length-1;i>=0;i--){ var pa=parts[i]; pa.x+=pa.vx; pa.y+=pa.vy; pa.vy+=0.12; pa.life--; if(pa.life<=0) parts.splice(i,1); }
+
+  if(mode==='play'||mode==='boss') updatePlay();
+}
+
+function updatePlay(){
+  // 砲台移動
+  var cl=18, cr=W-18;
+  targetX=Math.max(cl,Math.min(cr,targetX));
+  player.x+=(targetX-player.x)*TUNE.PLAYER_EASE;
+  if(player.invuln>0) player.invuln--;
+
+  // 自動発射（淡々）
+  if(fireCd>0) fireCd--;
+  if(fireCd<=0 && bullets.length<TUNE.BULLET_MAX && player.alive){
+    bullets.push({x:player.x,y:TUNE.PLAYER_Y-14});
+    fireCd=TUNE.FIRE_CD; sfxShot();
+  }
+  // 自弾
+  for(var i=bullets.length-1;i>=0;i--){
+    var b=bullets[i]; b.y-=TUNE.BULLET_SPD;
+    if(b.y<-8){ bullets.splice(i,1); continue; }
+    if(hitBunkerByBullet(b)){ bullets.splice(i,1); continue; }
+    if(mode==='play'){
+      var hit=false;
+      for(var e=0;e<enemies.length;e++){
+        var en=enemies[e]; if(!en.alive) continue;
+        if(Math.abs(b.x-en.x)<E_W/2+2 && Math.abs(b.y-en.y)<E_H/2+2){
+          en.alive=false; score+=ETYPE[en.type].score;
+          explode(en.x,en.y,ETYPE[en.type].col); sfxHit();
+          floaters.push({txt:'+'+ETYPE[en.type].score,x:en.x,y:en.y,tt:34,col:'#fff',big:false});
+          hit=true; break;
+        }
+      }
+      // UFO（スポンジマン）
+      if(!hit && ufo){
+        if(Math.abs(b.x-ufo.x)<16 && Math.abs(b.y-ufo.y)<10){
+          score+=300; floaters.push({txt:'スポンジマン? +300',x:ufo.x,y:ufo.y,tt:70,col:'#9fe8ff',big:false});
+          explode(ufo.x,ufo.y,'#9fe8ff'); sfxHit(); ufo=null; hit=true;
+        }
+      }
+      if(hit){ bullets.splice(i,1); continue; }
+    } else if(mode==='boss' && boss){
+      if(Math.abs(b.x-boss.x)<boss.w/2 && Math.abs(b.y-boss.y)<boss.h/2){
+        boss.hp--; boss.flash=6; explode(b.x,b.y,'#ff7a3d'); sfxHit();
+        bullets.splice(i,1);
+        if(boss.hp<=0){ defeatBoss(); return; }  // 撃破で状態遷移→この関数を抜ける（配列破棄後の走査を防ぐ）
+        continue;
+      }
+    }
+  }
+
+  if(mode==='play') updateFormation();
+  else if(mode==='boss') updateBoss();
+
+  // UFO（スポンジマン）道中登場：頭上を淡々と横切る
+  if(mode==='play'){
+    if(ufo){ ufo.x+=ufo.vx; if(ufo.x< -30||ufo.x>W+30) ufo=null; else if(t%18===0) sfxUfo(); }
+    else { ufoCd--; if(ufoCd<=0){ var d=Math.random()<0.5?1:-1; ufo={x:d>0?-24:W+24,y:52,vx:d*0.9}; ufoCd=560+Math.random()*260; } }
+  }
+
+  // 敵爆弾
+  if(bombCd>0) bombCd--;
+  if(bombCd<=0){ dropBomb(); bombCd=(mode==='boss'?46:78)-waveNo*8+Math.random()*40; }
+  for(var i=bombs.length-1;i>=0;i--){
+    var bm=bombs[i]; bm.y+=TUNE.BOMB_SPD; bm.t=(bm.t||0)+1;
+    if(bm.y>H+8){ bombs.splice(i,1); continue; }
+    if(hitBunkerByBomb(bm)){ bombs.splice(i,1); continue; }
+    if(player.alive && player.invuln<=0 && Math.abs(bm.x-player.x)<14 && Math.abs(bm.y-TUNE.PLAYER_Y)<12){
+      bombs.splice(i,1); playerHit(); continue;
+    }
+  }
+}
+
+function updateFormation(){
+  var alive=0,total=enemies.length;
+  var minX=1e9,maxX=-1e9,maxY=-1e9;
+  for(var i=0;i<enemies.length;i++){
+    var en=enemies[i]; if(!en.alive) continue;
+    alive++;
+    if(en.x<minX) minX=en.x; if(en.x>maxX) maxX=en.x; if(en.y>maxY) maxY=en.y;
+  }
+  if(alive===0){ clearWave(); return; }
+
+  // 残数に応じて行進間隔を短く（＝加速）
+  var ratio=alive/total;
+  stepMax=Math.max(TUNE.STEP_MIN, Math.round((TUNE.STEP_BASE-waveNo*4)*ratio+TUNE.STEP_MIN));
+  stepTimer++;
+  if(stepTimer>=stepMax){
+    stepTimer=0;
+    marchPhase^=1; sfxMarch();
+    // 端判定
+    var willL=minX-16+dir*TUNE.STEP_X<14;
+    var willR=maxX+16+dir*TUNE.STEP_X>W-14;
+    if((dir<0&&willL)||(dir>0&&willR)){
+      dir*=-1;
+      for(var i=0;i<enemies.length;i++){ if(enemies[i].alive) enemies[i].y+=TUNE.STEP_Y; }
+    } else {
+      for(var i=0;i<enemies.length;i++){ if(enemies[i].alive) enemies[i].x+=dir*TUNE.STEP_X; }
+    }
+  }
+  // 侵入ライン到達＝陥落
+  if(maxY+E_H/2>=TUNE.INVADE_Y){ invaded(); }
+}
+
+function dropBomb(){
+  if(mode==='boss' && boss){
+    // ボスは砲台狙いで散布
+    var n=2;
+    for(var k=0;k<n;k++){
+      bombs.push({x:boss.x+(k?-24:24),y:boss.y+boss.h/2,t:0});
+    }
+    sfxBomb(); return;
+  }
+  // 各列の最下段からランダムに落とす
+  var cols={};
+  for(var i=0;i<enemies.length;i++){
+    var en=enemies[i]; if(!en.alive) continue;
+    var key=en.gx;
+    if(!cols[key]||en.y>cols[key].y) cols[key]=en;
+  }
+  var keys=Object.keys(cols); if(keys.length===0) return;
+  var pick=cols[keys[(Math.random()*keys.length)|0]];
+  bombs.push({x:pick.x,y:pick.y+E_H/2,t:0}); sfxBomb();
+}
+
+function clearWave(){
+  // ウェーブ殲滅：ひとこと → 次ウェーブ or ボス
+  var h=nextHitokoto();
+  bombs.length=0; bullets.length=0;
+  if(waveNo>=WAVE_TOTAL){
+    dlg=[ {who:h.who,line:h.line},
+          {who:'高林君',line:'編隊は 片付いた。…けど 空気が 変わった。\n奥から でかいのが 来よる。'} ];
+    dlgActive=true; mode='wave';
+    // wave dlg終了後にplay→即ボスへ
+    pendingBoss=true;
+  } else {
+    dlg=[ {who:h.who,line:h.line} ];
+    dlgActive=true; mode='wave';
+    pendingNextWave=waveNo+1;
+  }
+}
+var pendingBoss=false, pendingNextWave=0;
+
+/* wave dlgを閉じたあとの遷移をadvanceDialogから拾う */
+var _adv=advanceDialog;
+advanceDialog=function(){
+  var wasWave=(mode==='wave');
+  dlg.shift();
+  if(dlg.length===0){
+    dlgActive=false;
+    if(mode==='intro'){ startWave(1); return; }
+    if(mode==='twist'){ spawnBoss('roic'); return; }   // 正体現し→最終戦
+    if(wasWave){
+      if(pendingBoss){ pendingBoss=false; spawnBoss(); return; }
+      if(pendingNextWave){ var nx=pendingNextWave; pendingNextWave=0; startWave(nx); return; }
+      mode='play'; return;
+    }
+  }
+};
+
+/* =========================================================================
+   ボス：納期ドラゴン（横行する大型インベーダー）
+   ========================================================================= */
+function spawnBoss(kind){
+  kind=kind||'deadline';
+  if(kind==='roic'){
+    boss={ kind:kind,name:'ROIC経営モンスター',x:W/2,y:118,w:132,h:50,hp:22,hpMax:22,vx:2.2,flash:0,phase:1,carpetCd:150 };
+    floaters.push({txt:'最終戦 ROIC経営モンスター!',x:W/2,y:64,tt:130,col:'#b6ff6e',big:true});
+    floaters.push({txt:'"それ、資本効率 低くない?"',x:W/2,y:90,tt:150,col:'#d7ff9a',big:false});
+  } else {
+    boss={ kind:'deadline',name:'納期ドラゴン',x:W/2,y:120,w:120,h:44,hp:TUNE.BOSS_HP,hpMax:TUNE.BOSS_HP,vx:1.5,flash:0,phase:1 };
+    floaters.push({txt:'大ボス 納期ドラゴン 出現!',x:W/2,y:64,tt:130,col:'#ff5a6e',big:true});
+    floaters.push({txt:'"8月を 食って 7月に 来た"……',x:W/2,y:90,tt:150,col:'#ffb14d',big:false});
+  }
+  mode='boss'; bombCd=40;
+}
+function updateBoss(){
+  if(!boss) return;
+  boss.x+=boss.vx;
+  if(boss.x<40||boss.x>W-40) boss.vx*=-1;
+  if(boss.flash>0) boss.flash--;
+  // 第2形態：HP半分で加速
+  if(boss.phase===1 && boss.hp<=boss.hpMax/2){
+    boss.phase=2; boss.vx*=1.5;
+    if(boss.kind==='roic') floaters.push({txt:'"減損 も 辞さない!" 効率 至上',x:W/2,y:70,tt:110,col:'#b6ff6e',big:true});
+    else floaters.push({txt:'納期ドラゴン 怒り! "前倒し 加速"',x:W/2,y:70,tt:110,col:'#ff5a6e',big:true});
+  }
+  // ROIC激昂：海外投資家の「C国絨毯爆撃」＝横一列の弾幕
+  if(boss.kind==='roic' && boss.phase===2){
+    boss.carpetCd--;
+    if(boss.carpetCd<=0){
+      boss.carpetCd=150;
+      floaters.push({txt:'海外投資家 "C国 絨毯爆撃"!',x:W/2,y:110,tt:90,col:'#b6ff6e',big:true});
+      for(var cxp=24;cxp<W-12;cxp+=34) bombs.push({x:cxp,y:boss.y+boss.h/2,t:0});
+      sfxBomb();
+    }
+  }
+}
+function defeatBoss(){
+  var roic=(boss.kind==='roic');
+  bigExplode(boss.x,boss.y, roic?'#b6ff6e':'#ff7a3d');
+  floaters.push({txt:boss.name+' 撃破!',x:W/2,y:H/2-30,tt:120,col:'#ffd23f',big:true});
+  boss=null; bombs.length=0; bullets.length=0;
+  if(roic){ mode='win'; buildClear(); }
+  else buildTwist();
+}
+
+/* =========================================================================
+   被弾・陥落
+   ========================================================================= */
+function playerHit(){
+  lives--; player.invuln=TUNE.INVULN; sfxDamage();
+  explode(player.x,TUNE.PLAYER_Y,'#efe4cb');
+  if(lives>0) floaters.push({txt:'やられても また 生える! しぶとく 再起',x:player.x,y:TUNE.PLAYER_Y-24,tt:70,col:'#ffd28a',big:false});
+  if(lives<=0) gameOver('マツタケ砲 折れる…だが 菌糸は 残った');
+}
+function invaded(){
+  gameOver('編隊に 陥落…課題に 呑まれた');
+}
+function gameOver(msg){
+  mode='over';
+  dlg=[]; dlgActive=false;
+  overMsg=msg; sfxDamage();
+}
+var overMsg='';
+
+/* =========================================================================
+   トーチカ（標準化の壁）当たり判定
+   ========================================================================= */
+function bunkerCellHit(bk,px,py){
+  var lx=px-bk.x, ly=py-bk.y;
+  if(lx<0||ly<0) return null;
+  var cxx=(lx/bk.cs)|0, cy=(ly/bk.cs)|0;
+  if(cxx<0||cxx>=bk.bw||cy<0||cy>=bk.bh) return null;
+  if(bk.cells[cy][cxx]>0) return {cxx:cxx,cy:cy};
+  return null;
+}
+function hitBunkerByBullet(b){
+  for(var i=0;i<bunkers.length;i++){
+    var hit=bunkerCellHit(bunkers[i],b.x,b.y);
+    if(hit){ bunkers[i].cells[hit.cy][hit.cxx]--; explode(b.x,b.y,'#6fe3a0'); return true; }
+  }
+  return false;
+}
+function hitBunkerByBomb(bm){
+  for(var i=0;i<bunkers.length;i++){
+    var hit=bunkerCellHit(bunkers[i],bm.x,bm.y);
+    if(hit){ bunkers[i].cells[hit.cy][hit.cxx]--; explode(bm.x,bm.y,'#6fe3a0'); return true; }
+  }
+  return false;
+}
+
+/* =========================================================================
+   パーティクル
+   ========================================================================= */
+function explode(x,y,col){
+  for(var i=0;i<8;i++){ var a=Math.random()*6.28,sp=Math.random()*2+0.5;
+    parts.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-0.5,life:16+Math.random()*10,max:26,col:col,sz:Math.random()*2+1}); }
+}
+function bigExplode(x,y,col){ for(var k=0;k<4;k++) explode(x+(Math.random()-0.5)*40,y+(Math.random()-0.5)*20,col); }
+
+/* =========================================================================
+   描画
+   ========================================================================= */
+function drawSprite(bmp,cxp,cyp,col){
+  cx.fillStyle=col;
+  var x0=cxp-E_W/2, y0=cyp-E_H/2;
+  for(var r=0;r<8;r++){ var row=bmp[r];
+    for(var c=0;c<8;c++){ if(row.charCodeAt(c)===49) cx.fillRect(x0+c*CELL,y0+r*CELL,CELL,CELL); } }
+}
+function drawBG(){
+  cx.fillStyle='#04060c'; cx.fillRect(0,0,W,H);
+  // 星（淡々とした静けさ）
+  cx.fillStyle='rgba(120,150,200,.5)';
+  for(var i=0;i<40;i++){ var sx=(i*97+ (t*0.2))%W; var sy=(i*53)%H; cx.fillRect(sx|0,sy|0,1,1); }
+  // 侵入ライン
+  cx.strokeStyle='rgba(255,90,110,.25)'; cx.setLineDash([4,4]);
+  cx.beginPath(); cx.moveTo(0,TUNE.INVADE_Y); cx.lineTo(W,TUNE.INVADE_Y); cx.stroke(); cx.setLineDash([]);
+}
+function drawPlayer(){
+  if(!player.alive) return;
+  if(player.invuln>0 && (t>>2)%2===0) return; // 点滅
+  var x=player.x, y=TUNE.PLAYER_Y;
+  // マツタケ砲（キノコ＝しぶとさの象徴）
+  cx.fillStyle='#efe4cb';               // 茎（クリーム）
+  cx.fillRect(x-5,y-10,10,14);
+  cx.fillRect(x-7,y+2,14,4);            // 石づき＝台座
+  cx.fillStyle='#6e4a2c';               // 傘（茶）
+  cx.fillRect(x-8,y-13,16,4);           // 傘のふち
+  cx.fillRect(x-7,y-16,14,3);
+  cx.fillStyle='#5a3b22';
+  cx.fillRect(x-5,y-19,10,3);
+  cx.fillRect(x-3,y-22,6,3);            // 傘の先＝発射口
+  cx.fillStyle='#4a301b';               // ひび（松茸の質感）
+  cx.fillRect(x-1,y-16,2,5);
+}
+function drawUfo(u){
+  cx.fillStyle='#9fe8ff';
+  cx.fillRect(u.x-14,u.y-2,28,5);
+  cx.fillRect(u.x-9,u.y-6,18,5);
+  cx.fillStyle='#ffd23f'; cx.fillRect(u.x-2,u.y-6,4,3);
+  cx.fillStyle='rgba(159,232,255,.35)'; cx.fillRect(u.x-14,u.y+3,28,2);
+}
+function drawBoss(){
+  if(!boss) return;
+  var x=boss.x,y=boss.y;
+  if(boss.kind==='roic'){
+    cx.fillStyle=boss.flash>0?'#ffffff':(boss.phase===2?'#7bd63a':'#5aa82c');
+    cx.fillRect(x-boss.w/2,y-boss.h/2,boss.w,boss.h);
+    // 目＝％と¥、口＝への字
+    cx.fillStyle='#0a1a08'; cx.font='bold 18px sans-serif'; cx.textAlign='center';
+    cx.fillText('％',x-28,y+2); cx.fillText('¥',x+28,y+2);
+    cx.fillRect(x-26,y+12,52,4);
+    // 触手（資本の触手）
+    cx.fillStyle=boss.phase===2?'#7bd63a':'#5aa82c';
+    for(var i=0;i<6;i++) cx.fillRect(x-52+i*20,y+boss.h/2-2,8,11);
+  } else {
+    cx.fillStyle=boss.flash>0?'#ffffff':(boss.phase===2?'#ff3d5a':'#ff5a6e');
+    cx.fillRect(x-boss.w/2,y-boss.h/2,boss.w,boss.h);
+    cx.fillStyle='#2a0d12';
+    cx.fillRect(x-boss.w/2+10,y-6,14,10);
+    cx.fillRect(x+boss.w/2-24,y-6,14,10);
+    cx.fillStyle='#ffd23f';
+    for(var i=0;i<5;i++) cx.fillRect(x-40+i*20,y+boss.h/2-4,10,4);
+  }
+  // 名前＆HPバー
+  cx.fillStyle='#fff'; cx.font='bold 11px sans-serif'; cx.textAlign='center';
+  cx.fillText(boss.name+(boss.phase===2?' (激昂)':''),x,y-boss.h/2-6);
+  var bw=160,bx=(W-bw)/2,byy=44;
+  cx.fillStyle='#333'; cx.fillRect(bx,byy,bw,6);
+  cx.fillStyle=boss.kind==='roic'?'#7bd63a':'#ff5a6e'; cx.fillRect(bx,byy,bw*Math.max(0,boss.hp/boss.hpMax),6);
+}
+function drawBunkers(){
+  for(var i=0;i<bunkers.length;i++){ var bk=bunkers[i];
+    for(var cy=0;cy<bk.bh;cy++){ for(var cxx=0;cxx<bk.bw;cxx++){
+      var hp=bk.cells[cy][cxx]; if(hp<=0) continue;
+      cx.fillStyle=hp>=2?'#3fa16a':'#2a6e48';
+      cx.fillRect(bk.x+cxx*bk.cs,bk.y+cy*bk.cs,bk.cs,bk.cs);
+    }}
+  }
+}
+function drawHUD(){
+  cx.textAlign='left'; cx.fillStyle='#dfe8ff'; cx.font='bold 12px sans-serif';
+  cx.fillText('生産性 '+score,8,18);
+  // 残機（砲台アイコン）
+  for(var i=0;i<lives;i++){ var lx=8+i*20, ly=30;   // 残機＝マツタケ砲
+    cx.fillStyle='#efe4cb'; cx.fillRect(lx+4,ly,4,6);
+    cx.fillStyle='#6e4a2c'; cx.fillRect(lx+1,ly-3,10,3); cx.fillRect(lx+3,ly-5,6,2); }
+  cx.textAlign='right'; cx.fillStyle='#9fb0d0'; cx.font='11px sans-serif';
+  cx.fillText(mode==='boss'?'BOSS':'WAVE '+waveNo+'/'+WAVE_TOTAL,W-36,18);
+  // ミュート
+  cx.fillStyle='#223'; cx.fillRect(BTN_MUTE.x,BTN_MUTE.y,BTN_MUTE.w,BTN_MUTE.h);
+  cx.fillStyle='#9fb0d0'; cx.font='12px sans-serif'; cx.textAlign='center';
+  cx.fillText(AUDIO.muted?'🔇':'🔊',BTN_MUTE.x+BTN_MUTE.w/2,BTN_MUTE.y+15);
+}
+function drawFloaters(){
+  cx.textAlign='center';
+  for(var i=0;i<floaters.length;i++){ var f=floaters[i];
+    cx.globalAlpha=Math.min(1,f.tt/20);
+    cx.fillStyle=f.col; cx.font=(f.big?'bold 14px':'bold 11px')+' sans-serif';
+    cx.fillText(f.txt,f.x,f.y);
+  }
+  cx.globalAlpha=1;
+}
+function wrapLines(str){ return str.split('\n'); }
+function drawDialog(){
+  if(!dlgActive||dlg.length===0) return;
+  var d=dlg[0];
+  var bh=118, by=H-bh-8, bx=10, bw=W-20;
+  cx.fillStyle='rgba(6,10,22,.94)'; cx.fillRect(bx,by,bw,bh);
+  cx.strokeStyle='#3a5a8a'; cx.lineWidth=2; cx.strokeRect(bx,by,bw,bh);
+  cx.textAlign='left';
+  cx.fillStyle='#ffd23f'; cx.font='bold 13px sans-serif';
+  cx.fillText(d.who,bx+12,by+22);
+  cx.fillStyle='#eef3ff'; cx.font='12px sans-serif';
+  var lines=wrapLines(d.line);
+  for(var i=0;i<lines.length;i++) cx.fillText(lines[i],bx+12,by+44+i*17);
+  cx.fillStyle='#8fa4c8'; cx.font='10px sans-serif'; cx.textAlign='right';
+  cx.fillText('▼ タップで送る',bx+bw-10,by+bh-8);
+}
+function drawTitle(){
+  drawBG();
+  cx.textAlign='center';
+  cx.fillStyle='#7ad1ff'; cx.font='bold 22px sans-serif';
+  cx.fillText('静岡上空インベーダー',W/2,150);
+  cx.fillStyle='#ffd23f'; cx.font='bold 15px sans-serif';
+  cx.fillText('経営防衛戦',W/2,176);
+  cx.fillStyle='#9fb0d0'; cx.font='11px sans-serif';
+  cx.fillText('木曜日の迷宮 Vol.6 改',W/2,196);
+  cx.fillStyle='#5a7a9a'; cx.font='9px sans-serif';
+  cx.fillText('— TAITO風味オマージュ —',W/2,212);
+  // サンプル敵を並べる
+  var types=['kin','naka','money','work','quality','demand'];
+  var labels=['金','中','お金','仕事','品質','要求'];
+  for(var i=0;i<6;i++){ var sx=52+i*51;
+    drawSprite(BMP[types[i]][0],sx,246,ETYPE[types[i]].col);
+    cx.fillStyle='#8fa4c8'; cx.font='9px sans-serif'; cx.textAlign='center'; cx.fillText(labels[i],sx,266); }
+  cx.fillStyle='#cdd8f0'; cx.font='12px sans-serif';
+  cx.fillText('「金」「中」＋お金・仕事・品質・要求 が',W/2,296);
+  cx.fillText('上から 編隊で 迫る。淡々と 撃ち落とせ',W/2,314);
+  cx.fillStyle='#8fa4c8'; cx.font='11px sans-serif';
+  cx.fillText('・ドラッグで マツタケ砲を 左右に',W/2,346);
+  cx.fillText('・弾は 自動で 静かに 発射（さっと決着）',W/2,364);
+  cx.fillText('・マツタケ＝しぶとさ。何度でも 生える',W/2,382);
+  cx.fillText('・納期ドラゴン→正体 ROIC経営モンスター',W/2,400);
+  cx.fillStyle=((t>>4)%2===0)?'#fff':'#5a7'; cx.font='bold 14px sans-serif';
+  cx.fillText('TAP TO START',W/2,466);
+  drawHUDmuteOnly();
+}
+function drawHUDmuteOnly(){
+  cx.fillStyle='#223'; cx.fillRect(BTN_MUTE.x,BTN_MUTE.y,BTN_MUTE.w,BTN_MUTE.h);
+  cx.fillStyle='#9fb0d0'; cx.font='12px sans-serif'; cx.textAlign='center';
+  cx.fillText(AUDIO.muted?'🔇':'🔊',BTN_MUTE.x+BTN_MUTE.w/2,BTN_MUTE.y+15);
+}
+function drawOver(){
+  cx.fillStyle='rgba(4,6,12,.72)'; cx.fillRect(0,0,W,H);
+  cx.textAlign='center';
+  cx.fillStyle='#ff5a6e'; cx.font='bold 20px sans-serif';
+  cx.fillText('撤退…',W/2,H/2-40);
+  cx.fillStyle='#eef3ff'; cx.font='13px sans-serif';
+  cx.fillText(overMsg,W/2,H/2-10);
+  cx.fillStyle='#9fb0d0'; cx.font='12px sans-serif';
+  cx.fillText('生産性 '+score,W/2,H/2+16);
+  cx.fillText('段取り 直して また 木曜に。',W/2,H/2+40);
+  cx.fillStyle=((t>>4)%2===0)?'#fff':'#5a7'; cx.font='bold 13px sans-serif';
+  cx.fillText('TAP TO RETRY',W/2,H/2+80);
+}
+function drawWinEnd(){
+  // twist/clearのdlgを閉じ切ったあとのエンディング表示
+  cx.fillStyle='rgba(4,10,8,.72)'; cx.fillRect(0,0,W,H);
+  cx.textAlign='center';
+  cx.fillStyle='#ffd23f'; cx.font='bold 20px sans-serif';
+  cx.fillText('木曜、取り戻した',W/2,H/2-50);
+  cx.fillStyle='#eef3ff'; cx.font='12px sans-serif';
+  cx.fillText('文句のようで、その実',W/2,H/2-18);
+  cx.fillText('いちばん 現場を 想っている。',W/2,H/2+2);
+  cx.fillStyle='#9fe8ff'; cx.font='bold 14px sans-serif';
+  cx.fillText('最終 生産性 '+score,W/2,H/2+38);
+  cx.fillStyle=((t>>4)%2===0)?'#fff':'#5a7'; cx.font='bold 13px sans-serif';
+  cx.fillText('TAP TO TITLE',W/2,H/2+78);
+}
+
+function render(){
+  if(mode==='title'){ drawTitle(); return; }
+  drawBG();
+  // 編隊
+  if(mode==='play'||mode==='wave'){
+    for(var i=0;i<enemies.length;i++){ var en=enemies[i]; if(!en.alive) continue;
+      drawSprite(BMP[en.type][marchPhase],en.x,en.y,ETYPE[en.type].col); }
+  }
+  if(ufo) drawUfo(ufo);
+  if(mode==='boss') drawBoss();
+  drawBunkers();
+  // 弾・爆弾
+  cx.fillStyle='#eaf6ff'; for(var i=0;i<bullets.length;i++) cx.fillRect(bullets[i].x-1,bullets[i].y-6,2,10);
+  cx.fillStyle='#ff9a6e'; for(var i=0;i<bombs.length;i++){ var bm=bombs[i]; cx.fillRect(bm.x-1,bm.y-4,2,8); if((bm.t>>2)%2){ cx.fillRect(bm.x-3,bm.y,2,2); cx.fillRect(bm.x+1,bm.y,2,2);} }
+  drawPlayer();
+  // パーティクル
+  for(var i=0;i<parts.length;i++){ var pa=parts[i]; cx.globalAlpha=Math.max(0,pa.life/pa.max); cx.fillStyle=pa.col; cx.fillRect(pa.x,pa.y,pa.sz,pa.sz); }
+  cx.globalAlpha=1;
+
+  drawFloaters();
+  drawHUD();
+  if((mode==='over')) drawOver();
+  if(mode==='win' && dlg.length===0 && !dlgActive) drawWinEnd();
+  drawDialog();
+}
+
+/* =========================================================================
+   メインループ
+   ========================================================================= */
+function loop(){ update(); render(); requestAnimationFrame(loop); }
+requestAnimationFrame(loop);
+
+/* デバッグ用フック（スモークテスト） */
+if(typeof module!=='undefined'){ module.exports={ startGame:startGame, get mode(){return mode;} }; }
+</script>
+</body>
+</html>
