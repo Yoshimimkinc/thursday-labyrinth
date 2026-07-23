@@ -332,11 +332,21 @@ function stepSpeed(a){
   return baseSpd(a);
 }
 function startMove(a,tc,tr,md){ a.tc=tc; a.tr=tr; a.p=0; a.moving=true; a.mode=md||''; }
+/* 穴にハマってもがいている敵（＝踏み台になる） */
+function trappedEnemyAt(c,r){
+  for(var i=0;i<enemies.length;i++){
+    var e=enemies[i];
+    if(e.dead>0||e.moving||e.trap<=0) continue;
+    if(e.c===c&&e.r===r) return e;
+  }
+  return null;
+}
 function supported(a){
   var cur=tileAt(a.c,a.r), below=tileAt(a.c,a.r+1);
   if(cur===HOLE) return true;              // 掘った穴は"床のくぼみ"＝底で止まる
   if(climbT(cur)||cur===ROPE) return true;
   if(solidT(below)||climbT(below)) return true;
+  if(trappedEnemyAt(a.c,a.r+1)) return true;   // ハマった敵の 頭の上は 歩ける
   return false;
 }
 function decide(a,wx,wy){
@@ -419,7 +429,7 @@ function crushEnemy(en){
    ========================================================================= */
 function nodeSupported(c,r){
   var cur=tileAt(c,r), below=tileAt(c,r+1);
-  return cur===HOLE||climbT(cur)||cur===ROPE||solidT(below)||climbT(below);
+  return cur===HOLE||climbT(cur)||cur===ROPE||solidT(below)||climbT(below)||!!trappedEnemyAt(c,r+1);
 }
 function computeDist(){
   var n=COLS*ROWS;
@@ -516,6 +526,10 @@ function updatePlay(){
     // 穴にハマっている間は もがく（無害）
     if(!e.moving && tileAt(e.c,e.r)===HOLE){
       e.trap++;
+      if(e.trap===1){
+        sfxTrap();
+        floaters.push({txt:'ハマった! 頭の上を 渡れる',x:FX+e.c*T+T/2,y:FY+e.r*T-6,tt:80,col:'#9fe8ff',big:false});
+      }
       if(e.trap>=TUNE.ENEMY_ESCAPE && passable(tileAt(e.c,e.r-1))){ startMove(e,e.c,e.r-1,'climb'); e.trap=0; }
       continue;
     }
@@ -964,15 +978,16 @@ function drawTitle(){
   cx.fillText('迷宮化した 工場に 落ちた「粗利」を',W/2,278);
   cx.fillText('ぜんぶ 拾って 屋上へ 脱出せよ',W/2,296);
   cx.fillStyle='#8fa4c8'; cx.font='11px sans-serif';
-  cx.fillText('・十字ボタンで 走る／はしごを のぼる',W/2,330);
-  cx.fillText('・⛏ボタンで 足元の 床に カイゼン穴',W/2,350);
-  cx.fillText('・追手を 穴に 落とす（穴は やがて 塞がる）',W/2,370);
-  cx.fillText('・鋼材（灰色）は 掘れない／自分が 落ちたら ↑長押し',W/2,390);
-  cx.fillText('・大ボス 納期ドラゴン、案内人の 正体は ROIC…',W/2,410);
+  cx.fillText('・十字ボタンで 走る／はしごを のぼる',W/2,326);
+  cx.fillText('・⛏ボタンで 足元の 床に カイゼン穴',W/2,344);
+  cx.fillText('・追手を 穴に 落とす（穴は やがて 塞がる）',W/2,362);
+  cx.fillText('・ハマった敵の 頭の上は 走って 渡れる',W/2,380);
+  cx.fillText('・鋼材（灰色）は 掘れない／自分が 落ちたら ↑長押し',W/2,398);
+  cx.fillText('・大ボス 納期ドラゴン、案内人の 正体は ROIC…',W/2,416);
   cx.fillStyle='#7ad1ff'; cx.font='bold 11px sans-serif';
-  cx.fillText('PC：←→↑↓ で 走る／Z＝左を掘る・X＝右を掘る',W/2,438);
+  cx.fillText('PC：←→↑↓ で 走る／Z＝左を掘る・X＝右を掘る',W/2,442);
   cx.fillStyle='#5a7a9a'; cx.font='10px sans-serif';
-  cx.fillText('（画面を 一度 クリックしてから キーを 押してください）',W/2,456);
+  cx.fillText('（画面を 一度 クリックしてから キーを 押してください）',W/2,460);
   cx.fillStyle=((t>>4)%2===0)?'#fff':'#5a7'; cx.font='bold 15px sans-serif';
   cx.fillText('TAP TO START',W/2,500);
   cx.fillStyle='#3f4d63'; cx.font='9px sans-serif';
