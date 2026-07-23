@@ -15,15 +15,15 @@ html,body{
   display:flex;align-items:center;justify-content:center;
 }
 #wrap{
-  position:relative;height:100dvh;height:100vh;aspect-ratio:360/640;
+  position:relative;height:100dvh;height:100vh;aspect-ratio:480/854;
   max-width:100vw;background:#000;box-shadow:0 0 34px rgba(150,120,60,.30);
 }
 #g{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none;}
-@media (max-aspect-ratio:360/640){#wrap{height:auto;width:100vw;}}
+@media (max-aspect-ratio:480/854){#wrap{height:auto;width:100vw;}}
 </style>
 </head>
 <body>
-<div id="wrap"><canvas id="g" width="360" height="640"></canvas></div>
+<div id="wrap"><canvas id="g" width="480" height="854"></canvas></div>
 <script>
 "use strict";
 /* =========================================================================
@@ -31,15 +31,18 @@ html,body{
    OHMAMA SOFT Adventure Series / ロードランナー風味オマージュ
    単一HTML / バニラJS / 依存なし / スマホ縦持ち前提
    -------------------------------------------------------------------------
-   芯：迷宮化した工場を走り、床に落ちた「粗利」を拾い切って屋上へ脱出する。
-       追ってくるのは 経営あるある（お客様／がいちゅうさん／さぎょういん）。
-       武器は "標準化のツルハシ"。足元の床に カイゼン穴 を掘って落とす。
-       穴は そのうち 塞がる（長居は禁物・自分が落ちたら よじ登る）。
+   本家ロードランナーの肝：
+     ・掘った穴は"下の階への通り道"。自分は落ちて降りられる（＝進行手段）
+     ・敵は穴にハマって もがく。その頭の上は 走って渡れる
+     ・敵は 金塊(粗利)を 拾って持ち歩く。穴にハマる／潰されると 吐き出す
+     ・見た目は床でも 踏み抜ける「すり抜け床」がある
+     ・鋼材(灰色)は掘れない。穴はやがて塞がり、中の者を潰す
    世界観：約束戦士4人（佐藤/岩田/高林/ミヤカワ・全員経営者）で木曜を取り戻す。
-       大ボス＝納期ドラゴン。案内人スポンジマン＝生産性悪化の権化（どんでん返し）。
+     敵＝経営あるある。大ボス＝納期ドラゴン。
+     案内人スポンジマン＝ROIC経営モンスター（どんでん返し）。
    ========================================================================= */
 
-var W=360, H=640;
+var W=480, H=854;
 var cv=document.getElementById('g');
 var cx=cv.getContext('2d');
 cx.imageSmoothingEnabled=false;
@@ -48,18 +51,19 @@ cx.imageSmoothingEnabled=false;
    ★ バランス調整用 定数 ★
    ========================================================================= */
 var TUNE={
-  WALK:        0.085,  // 走る速さ（タイル/フレーム）
-  CLIMB:       0.072,  // はしごを昇り降りする速さ
-  FALL:        0.150,  // 落下速度
+  WALK:        0.090,  // 走る速さ（タイル/フレーム）
+  CLIMB:       0.075,  // はしごを昇り降りする速さ
+  FALL:        0.155,  // 落下速度
   DIG_FREEZE:  12,     // 穴を掘る間、動けないフレーム数
   HOLE_LIFE:   520,    // 穴が塞がるまで（約8.5秒）
   HOLE_WARN:   90,     // 塞がる直前の点滅時間
-  ENEMY_ESCAPE:260,    // 敵が穴から這い上がるまで（長め＝助かりやすい）
+  ENEMY_ESCAPE:260,    // 敵が穴から這い上がるまで
   ENEMY_RESPAWN:180,   // 敵が潰されて復活するまで
-  CLIMB_OUT:   22,     // 自分が穴に落ちた時、↑長押しでよじ登るまで
+  CLIMB_OUT:   22,     // 自分が穴の底に居るとき、↑長押しでよじ登るまで
   GRACE:       90,     // ステージ開始／復帰直後の無敵
   LIVES:       5,
-  AI_TICK:     6       // 敵AIの経路再計算の間隔
+  AI_TICK:     6,      // 敵AIの経路再計算の間隔
+  GOLD_GRAB:   0.7     // 敵が足元の粗利を拾う確率
 };
 
 var PARTY=['佐藤さん','岩田君','高林君','ミヤカワくん'];
@@ -77,87 +81,96 @@ function nextHitokoto(){ var h=HITOKOTO[hitoIdx%HITOKOTO.length]; hitoIdx++; ret
 /* =========================================================================
    タイル定義
    ========================================================================= */
-var EMPTY=0, BRICK=1, SOLID=2, LADDER=3, ROPE=4, EXIT=5, HOLE=6;
+var EMPTY=0, BRICK=1, SOLID=2, LADDER=3, ROPE=4, EXIT=5, HOLE=6, FAKE=7;
 function solidT(v){ return v===BRICK||v===SOLID; }
 function passable(v){ return !solidT(v); }
 function climbT(v){ return v===LADDER || (v===EXIT && exitOpen); }
 
-var T=20, COLS=18, ROWS=15;      // 盤面 18×15（1タイル20px＝360×300）
-var FX=0, FY=46;                 // 盤面の左上（上はHUD）
+var T=20, COLS=24, ROWS=17;      // 盤面 24×17（1タイル20px＝480×340）
+var FX=0, FY=54;                 // 盤面の左上（上はHUD）
 
 /* =========================================================================
-   ステージ（'#'掘れる床 / '='掘れない設備 / 'H'はしご / '-'クレーンのレール
-             '$'粗利 / 'X'脱出はしご(粗利を全部拾うと出現) / 'P'自分
-             'E'経営あるある / 'D'納期ドラゴン / 'S'スポンジマン)
+   ステージ
+     '#'掘れる床 / '='掘れない鋼材 / 'V'すり抜け床（見た目は床・踏むと落ちる）
+     'H'はしご / '-'クレーンのレール / '$'粗利 / 'X'脱出はしご（粗利全回収で出現）
+     'P'自分 / 'E'経営あるある / 'D'納期ドラゴン / 'S'スポンジマン
    ========================================================================= */
 var STAGES=[
 { name:'1F 受注の谷', enemies:['kyaku','gaicyu'], map:[
-"         X        ",
-" $       X   H  $ ",
-"#############H####",
-"             H    ",
-"  $ H E ---- H  $ ",
-"####H###    #H####",
-"    H             ",
-"    H    $    H   ",
-"##############H###",
-"              H   ",
-"   H   $   E  H   ",
-"###H##############",
-"   H              ",
-" P H    $      $  ",
-"=================="
+"           X            ",
+"           X            ",
+"           X            ",
+"  $  H     X      H $   ",
+"#####H####====####H#####",
+"     H            H     ",
+" $   H   H  E H   H  $  ",
+"#########H####H#########",
+"         H    H         ",
+"  H $ E  H    H  ------ ",
+"##H#########V####      #",
+"  H                     ",
+"  H    H $     $    H   ",
+"###===#H############H###",
+"       H            H   ",
+" P  $  H   $    $   H $ ",
+"========================"
 ]},
 { name:'2F 外注さんの回廊', enemies:['kyaku','gaicyu','sagyo'], map:[
-"        X         ",
-"  $  H  X   $   $ ",
-"#####H############",
-"     H            ",
-"  $  H   H  E $   ",
-"##===####H########",
-"         H        ",
-" H E  $  H -----  ",
-"#H#######H#     ##",
-" H                ",
-" H  ----$  E $  H ",
-"#H##    ########H#",
-"                H ",
-" P   $    $   $ H ",
-"=================="
+"               X        ",
+"               X        ",
+"               X        ",
+"  $     H   $  X   H  $ ",
+"########H##########H####",
+"        H          H    ",
+"  H-----H $  H  E  H    ",
+"##H     #####H##########",
+"  H          H ######   ",
+"  H  $ E  H  H   $   H  ",
+"#####V####H##########H##",
+"          H          H  ",
+"  E H ----H  $  H  $ H  ",
+"####H#    ######H#######",
+"    H           H       ",
+" P  H   $    $  H   $   ",
+"========================"
 ]},
-{ name:'3F 納期ドラゴンの間', enemies:['kyaku','sagyo','dragon'], map:[
-"             X    ",
-" $ H    $    X  $ ",
-"###H##############",
-"   H              ",
-"   H  $    H  E   ",
-"######====#H######",
-"           H      ",
-"  $   H    H---- $",
-"######H#####    ##",
-"      H           ",
-" E    H  H  $  $  ",
-"######H##H########",
-"         H        ",
-" P  $    H  $  D$ ",
-"=================="
+{ name:'3F 納期ドラゴンの間', enemies:['kyaku','sagyo','gaicyu'], map:[
+"      X                 ",
+"      X                 ",
+"      X                 ",
+" $    X    H  $  $   H  ",
+"##====#####H#########H##",
+"           H         H  ",
+"  E  H  $  H   H   $ H  ",
+"#####H#########H########",
+"     H         H        ",
+"  $  H  H   $E H -----H ",
+"########H########     H#",
+"        H             H ",
+"   H  $ H  D    $  H  H ",
+"###H######V########H####",
+"   H               H    ",
+" P H   $    $   E  H  $ ",
+"========================"
 ]},
-{ name:'屋上 ROIC経営の間', enemies:['gaicyu','sagyo','gonge'], map:[
-"         X        ",
-"  H$   $ X  $  H$ ",
-"##H############H##",
-"  H            H  ",
-"  HE H------ E H  ",
-"#####H      ######",
-"     H            ",
-" $   H  $   H   $ ",
-"############H#####",
-"            H     ",
-"   H   $ S  H  $  ",
-"###H##############",
-"   H              ",
-" P H     $    $   ",
-"=================="
+{ name:'屋上 ROIC経営の間', enemies:['gaicyu','sagyo'], map:[
+"            X           ",
+"            X           ",
+"            X           ",
+" $  H   $   X   $   H $ ",
+"####H###############H###",
+"    H               H   ",
+"  E H  H ------ H   H E ",
+"#######H#      #H#######",
+"       H        H       ",
+"  H  $ H  $ H   H  $  H ",
+"##H#########H##V######H#",
+"  H         H         H ",
+"  H  H  --- H S$  H $ H ",
+"#####H##   #######H#####",
+"     H            H     ",
+" P   H   $   $    H  $  ",
+"========================"
 ]}
 ];
 
@@ -187,7 +200,7 @@ var STAGE_GUCHI=[
 var mode='title';   // title/intro/play/clear/twist/win/over
 var t=0;
 var score=0, lives=TUNE.LIVES;
-var stageNo=0;                    // 1..4
+var stageNo=0;
 var grid=[], gold=[], holes=[];
 var goldLeft=0, goldTotal=0;
 var exitOpen=false;
@@ -197,6 +210,7 @@ var dist=null, aiTick=0;
 var dlg=[], dlgActive=false;
 var overMsg='';
 var msgLine='';
+var pendingAction='';
 
 /* 入力 */
 var pad={left:false,right:false,up:false,down:false};
@@ -260,10 +274,11 @@ function sfxFill(){ tone(120,0.18,'sawtooth',0.10,60); }
 function sfxTrap(){ noise(0.20,0.22,1400,true); tone(300,0.14,'square',0.10,90); }
 function sfxDie(){ noise(0.32,0.30,900,true); tone(140,0.32,'square',0.14,50); }
 function sfxClear(){ tone(523,0.10,'square',0.12); tone(659,0.10,'square',0.12); tone(784,0.20,'square',0.14); }
-function sfxStep(){ tone(220,0.03,'square',0.03); }
+function sfxLand(){ tone(200,0.03,'square',0.04); }
+function sfxDrop(){ tone(660,0.08,'triangle',0.09,300); }
 
 /* =========================================================================
-   ステージ読み込み
+   盤面アクセス
    ========================================================================= */
 function tileAt(c,r){
   if(c<0||c>=COLS) return SOLID;
@@ -271,8 +286,12 @@ function tileAt(c,r){
   if(r<0) return EMPTY;
   return grid[r][c];
 }
+/* 場に落ちている（誰も持っていない）粗利 */
 function goldIdx(c,r){
-  for(var i=0;i<gold.length;i++){ if(gold[i].c===c&&gold[i].r===r&&!gold[i].got) return i; }
+  for(var i=0;i<gold.length;i++){
+    var g=gold[i];
+    if(!g.got && !g.carried && g.c===c && g.r===r) return i;
+  }
   return -1;
 }
 function loadStage(n){
@@ -280,17 +299,18 @@ function loadStage(n){
   var S=STAGES[n-1];
   grid=[]; gold=[]; holes=[]; enemies=[]; enemyStarts=[]; parts=[]; floaters=[];
   exitOpen=false; dist=null; aiTick=0;
-  var ei=0, pStart={c:1,r:13};
+  var ei=0, pStart={c:1,r:ROWS-2};
   for(var r=0;r<ROWS;r++){
     var row=[], src=S.map[r];
     for(var c=0;c<COLS;c++){
       var ch=src.charAt(c), v=EMPTY;
       if(ch==='#') v=BRICK;
       else if(ch==='=') v=SOLID;
+      else if(ch==='V') v=FAKE;
       else if(ch==='H') v=LADDER;
       else if(ch==='-') v=ROPE;
       else if(ch==='X') v=EXIT;
-      else if(ch==='$'){ v=EMPTY; gold.push({c:c,r:r,got:false}); }
+      else if(ch==='$'){ v=EMPTY; gold.push({c:c,r:r,got:false,carried:false}); }
       else if(ch==='P'){ v=EMPTY; pStart={c:c,r:r}; }
       else if(ch==='E'||ch==='D'||ch==='S'){
         v=EMPTY;
@@ -314,18 +334,15 @@ function loadStage(n){
 }
 function mkActor(c,r,kind){
   return { c:c, r:r, tc:c, tr:r, p:0, moving:false, mode:'', kind:kind,
-           face:1, anim:0, trap:0, dead:0, digLock:0, climbHold:0, grace:0 };
+           face:1, anim:0, trap:0, dead:0, digLock:0, climbHold:0, grace:0, hasGold:-1 };
 }
 function actorX(a){ return (a.c+(a.tc-a.c)*a.p); }
 function actorY(a){ return (a.r+(a.tr-a.r)*a.p); }
 
 /* =========================================================================
-   移動エンジン（タイル間を1マスずつ・ロードランナー準拠）
+   移動エンジン（ロードランナー準拠・1マスずつ）
    ========================================================================= */
-function baseSpd(a){
-  if(a.kind==='me') return TUNE.WALK;
-  return EKIND[a.kind].spd;
-}
+function baseSpd(a){ return (a.kind==='me')?TUNE.WALK:EKIND[a.kind].spd; }
 function stepSpeed(a){
   if(a.mode==='fall') return TUNE.FALL;
   if(a.tr!==a.r) return (a.kind==='me'?TUNE.CLIMB:baseSpd(a)*0.85);
@@ -343,7 +360,7 @@ function trappedEnemyAt(c,r){
 }
 function supported(a){
   var cur=tileAt(a.c,a.r), below=tileAt(a.c,a.r+1);
-  if(cur===HOLE) return true;              // 掘った穴は"床のくぼみ"＝底で止まる
+  if(cur===HOLE) return a.kind!=='me';         // 敵は穴にハマる／自分は穴を通り抜けて降りられる
   if(climbT(cur)||cur===ROPE) return true;
   if(solidT(below)||climbT(below)) return true;
   if(trappedEnemyAt(a.c,a.r+1)) return true;   // ハマった敵の 頭の上は 歩ける
@@ -351,8 +368,9 @@ function supported(a){
 }
 function decide(a,wx,wy){
   if(!supported(a)){ startMove(a,a.c,a.r+1,'fall'); return; }
-  if(wy<0 && climbT(tileAt(a.c,a.r)) && climbT(tileAt(a.c,a.r-1))){ startMove(a,a.c,a.r-1,'climb'); return; }
-  if(wy>0 && tileAt(a.c,a.r)!==HOLE && passable(tileAt(a.c,a.r+1))){ startMove(a,a.c,a.r+1,'climb'); return; }
+  var cur=tileAt(a.c,a.r);
+  if(wy<0 && climbT(cur) && climbT(tileAt(a.c,a.r-1))){ startMove(a,a.c,a.r-1,'climb'); return; }
+  if(wy>0 && !(a.kind!=='me'&&cur===HOLE) && passable(tileAt(a.c,a.r+1))){ startMove(a,a.c,a.r+1,'climb'); return; }
   if(wx!==0 && passable(tileAt(a.c+wx,a.r))){ a.face=wx; startMove(a,a.c+wx,a.r,''); return; }
 }
 function actorUpdate(a,wx,wy){
@@ -366,20 +384,47 @@ function actorUpdate(a,wx,wy){
   }
   decide(a,wx,wy);
 }
+/* 走っている途中でも 逆を押したら すぐ切り返す（本家の反応の良さ） */
+function tryReverse(a,wx){
+  if(!a.moving||a.mode==='fall') return;
+  if(a.tr!==a.r) return;                       // 横移動中のみ
+  var dir=(a.tc-a.c);
+  if(wx===0||dir===0||wx===dir) return;
+  var oc=a.c; a.c=a.tc; a.tc=oc; a.p=1-a.p; a.face=wx;
+}
 function onArrive(a,wasFall){
   if(a.kind==='me'){
     var gi=goldIdx(a.c,a.r);
     if(gi>=0){
       gold[gi].got=true; goldLeft--; score+=100; sfxGold();
       floaters.push({txt:'粗利 +100',x:FX+a.c*T+T/2,y:FY+a.r*T,tt:40,col:'#ffd23f',big:false});
-      if(goldLeft<=0){ openExit(); }
+      if(goldLeft<=0) openExit();
     }
-    if(wasFall) sfxStep();
+    if(wasFall) sfxLand();
+  } else {
+    // 敵は 粗利を 拾って 持ち歩く（本家の肝）
+    if(a.hasGold<0){
+      var g2=goldIdx(a.c,a.r);
+      if(g2>=0 && Math.random()<TUNE.GOLD_GRAB){
+        gold[g2].carried=true; a.hasGold=g2;
+        floaters.push({txt:EKIND[a.kind].name+' が 粗利を 持って行った!',x:FX+a.c*T+T/2,y:FY+a.r*T-6,tt:80,col:'#ff9a6e',big:false});
+      }
+    }
   }
+}
+function dropGold(a){
+  if(a.hasGold<0) return;
+  var g=gold[a.hasGold];
+  var rr=a.r;
+  if(!passable(tileAt(a.c,rr))||tileAt(a.c,rr)===HOLE) rr=a.r-1;
+  while(rr>0 && !passable(tileAt(a.c,rr))) rr--;
+  g.c=a.c; g.r=rr; g.carried=false;
+  a.hasGold=-1; sfxDrop();
+  floaters.push({txt:'粗利 を 吐き出した',x:FX+g.c*T+T/2,y:FY+g.r*T-6,tt:70,col:'#ffd23f',big:false});
 }
 function openExit(){
   exitOpen=true; sfxClear();
-  floaters.push({txt:'脱出はしご 出現! 上へ 走れ',x:W/2,y:FY+40,tt:150,col:'#7ad1ff',big:true});
+  floaters.push({txt:'脱出はしご 出現! 上へ 走れ',x:W/2,y:FY+50,tt:150,col:'#7ad1ff',big:true});
   msgLine='粗利 回収 完了 — 屋上へ 脱出せよ';
 }
 
@@ -392,24 +437,23 @@ function tryDig(dirX){
   if(!solidT(tileAt(player.c,player.r+1))) return;       // 床の上でしか掘れない
   var c=player.c+dirX, r=player.r+1;
   if(c<0||c>=COLS||r>=ROWS) return;
-  if(tileAt(c,r)!==BRICK) return;                        // '='の設備は掘れない
-  if(!passable(tileAt(c,r-1))) return;                   // 掘る場所の真上が塞がっていたら不可
+  if(tileAt(c,r)!==BRICK) return;                        // 鋼材('=')・すり抜け床は 掘れない
+  if(!passable(tileAt(c,r-1))) return;                   // 掘る場所の真上が 塞がっていたら 不可
   if(goldIdx(c,r-1)>=0) return;
   grid[r][c]=HOLE;
   holes.push({c:c,r:r,t:0});
   player.digLock=TUNE.DIG_FREEZE; player.face=dirX;
   sfxDig();
-  for(var i=0;i<6;i++) parts.push({x:FX+c*T+T/2,y:FY+r*T+T/2,vx:(Math.random()-0.5)*3,vy:-Math.random()*2,life:18,max:18,col:'#a9714a',sz:2});
+  for(var i=0;i<8;i++) parts.push({x:FX+c*T+T/2,y:FY+r*T+T/2,vx:(Math.random()-0.5)*3,vy:-Math.random()*2,life:18,max:18,col:'#a9714a',sz:2});
 }
 function updateHoles(){
   for(var i=holes.length-1;i>=0;i--){
     var h=holes[i]; h.t++;
     if(h.t>=TUNE.HOLE_LIFE){
       grid[h.r][h.c]=BRICK; holes.splice(i,1); sfxFill();
-      // 穴に居た者は潰される
       for(var e=0;e<enemies.length;e++){
         var en=enemies[e];
-        if(!en.dead && en.c===h.c && en.r===h.r && !en.moving){ crushEnemy(en); }
+        if(!en.dead && en.c===h.c && en.r===h.r && !en.moving) crushEnemy(en);
       }
       if(player && !player.dead && player.c===h.c && player.r===h.r && !player.moving){
         killPlayer('穴に 呑まれた…段取り 直しや');
@@ -419,8 +463,9 @@ function updateHoles(){
 }
 function crushEnemy(en){
   score+=200; sfxTrap();
-  floaters.push({txt:EKIND[en.kind].name+' を 標準化! +200',x:FX+en.c*T+T/2,y:FY+en.r*T-4,tt:70,col:'#9fe8ff',big:false});
-  for(var i=0;i<10;i++) parts.push({x:FX+en.c*T+T/2,y:FY+en.r*T+T/2,vx:(Math.random()-0.5)*4,vy:-Math.random()*3,life:22,max:22,col:EKIND[en.kind].col,sz:2});
+  floaters.push({txt:EKIND[en.kind].name+' を 標準化! +200',x:FX+en.c*T+T/2,y:FY+en.r*T-6,tt:70,col:'#9fe8ff',big:false});
+  for(var i=0;i<12;i++) parts.push({x:FX+en.c*T+T/2,y:FY+en.r*T+T/2,vx:(Math.random()-0.5)*4,vy:-Math.random()*3,life:22,max:22,col:EKIND[en.kind].col,sz:2});
+  dropGold(en);
   en.dead=TUNE.ENEMY_RESPAWN; en.moving=false; en.trap=0;
 }
 
@@ -441,12 +486,11 @@ function computeDist(){
   var head=0;
   while(head<q.length){
     var id=q[head++], c=id%COLS, r=(id/COLS)|0, d=dist[id];
-    // m=(c,r) へ入って来られる n を列挙（＝逆辺）
     var cand=[
-      {c:c,   r:r-1, ok:true},                                   // 上から落ちて/降りて来た
-      {c:c,   r:r+1, ok:climbT(tileAt(c,r+1))&&climbT(tileAt(c,r))}, // 下からはしごで昇って来た
-      {c:c-1, r:r,   ok:nodeSupported(c-1,r)},                   // 右へ歩いて来た
-      {c:c+1, r:r,   ok:nodeSupported(c+1,r)}                    // 左へ歩いて来た
+      {c:c,   r:r-1, ok:true},                                        // 上から落ちて/降りて来た
+      {c:c,   r:r+1, ok:climbT(tileAt(c,r+1))&&climbT(tileAt(c,r))},  // 下からはしごで昇って来た
+      {c:c-1, r:r,   ok:nodeSupported(c-1,r)},                        // 右へ歩いて来た
+      {c:c+1, r:r,   ok:nodeSupported(c+1,r)}                         // 左へ歩いて来た
     ];
     for(var k=0;k<4;k++){
       var v=cand[k];
@@ -464,7 +508,6 @@ function distAt(c,r){
   return dist?dist[c+r*COLS]:-1;
 }
 function enemyThink(e){
-  // 現在地から出られる合法手を並べ、距離が最小の方向へ
   var opts=[];
   var cur=tileAt(e.c,e.r);
   if(cur!==HOLE && passable(tileAt(e.c,e.r+1))) opts.push({wx:0,wy:1,d:distAt(e.c,e.r+1)});
@@ -479,7 +522,6 @@ function enemyThink(e){
     if(!best||o.d<best.d) best=o;
   }
   if(best) return best;
-  // 見失ったら プレイヤーの居る方へ とりあえず横移動
   var dir=(player.c>e.c)?1:-1;
   return {wx:dir,wy:0,d:0};
 }
@@ -502,8 +544,8 @@ function updatePlay(){
   if(L&&!R) wx=-1; else if(R&&!L) wx=1;
   if(U&&!D) wy=-1; else if(D&&!U) wy=1;
   if(player.digLock>0){ player.digLock--; wx=0; wy=0; }
-  // 自分が穴に落ちた時：↑長押しで よじ登る
-  if(!player.moving && tileAt(player.c,player.r)===HOLE){
+  // 穴の底に居るとき：↑長押しで よじ登る
+  if(!player.moving && tileAt(player.c,player.r)===HOLE && solidT(tileAt(player.c,player.r+1))){
     if(wy<0){
       player.climbHold++;
       if(player.climbHold>=TUNE.CLIMB_OUT && passable(tileAt(player.c,player.r-1))){
@@ -511,8 +553,9 @@ function updatePlay(){
       }
     } else player.climbHold=0;
   } else player.climbHold=0;
-  if(player.moving||player.digLock<=0) actorUpdate(player,wx,wy);
-  if(player.anim!==undefined) player.anim=(player.moving?player.anim+1:0);
+  if(player.digLock<=0) tryReverse(player,wx);
+  actorUpdate(player,wx,wy);
+  player.anim=(player.moving?player.anim+1:0);
 
   // --- 敵 ---
   if(aiTick<=0){ computeDist(); aiTick=TUNE.AI_TICK; } else aiTick--;
@@ -523,12 +566,12 @@ function updatePlay(){
       if(e.dead===0) respawnEnemy(e);
       continue;
     }
-    // 穴にハマっている間は もがく（無害）
-    if(!e.moving && tileAt(e.c,e.r)===HOLE){
+    if(!e.moving && tileAt(e.c,e.r)===HOLE){        // 穴にハマってもがく（無害・踏み台）
       e.trap++;
       if(e.trap===1){
         sfxTrap();
         floaters.push({txt:'ハマった! 頭の上を 渡れる',x:FX+e.c*T+T/2,y:FY+e.r*T-6,tt:80,col:'#9fe8ff',big:false});
+        dropGold(e);
       }
       if(e.trap>=TUNE.ENEMY_ESCAPE && passable(tileAt(e.c,e.r-1))){ startMove(e,e.c,e.r-1,'climb'); e.trap=0; }
       continue;
@@ -551,12 +594,12 @@ function updatePlay(){
     }
   }
   // --- 脱出判定 ---
-  if(!player.dead && exitOpen && player.r===0){ stageClear(); }   // 最上段に着いた瞬間に脱出成功
+  if(!player.dead && exitOpen && player.r===0) stageClear();
 }
 function respawnEnemy(e){
   var pick=enemyStarts[(Math.random()*enemyStarts.length)|0];
   var tries=0;
-  while(tries<8 && Math.abs(pick.c-player.c)+Math.abs(pick.r-player.r)<4){
+  while(tries<8 && Math.abs(pick.c-player.c)+Math.abs(pick.r-player.r)<5){
     pick=enemyStarts[(Math.random()*enemyStarts.length)|0]; tries++;
   }
   e.c=pick.c; e.r=pick.r; e.tc=e.c; e.tr=e.r; e.p=0; e.moving=false; e.trap=0; e.mode='';
@@ -564,28 +607,19 @@ function respawnEnemy(e){
 function killPlayer(msg){
   if(player.dead) return;
   player.dead=1; lives--; sfxDie();
-  for(var i=0;i<14;i++) parts.push({x:FX+actorX(player)*T+T/2,y:FY+actorY(player)*T+T/2,vx:(Math.random()-0.5)*4,vy:-Math.random()*3,life:26,max:26,col:'#ffd23f',sz:2});
+  for(var i=0;i<16;i++) parts.push({x:FX+actorX(player)*T+T/2,y:FY+actorY(player)*T+T/2,vx:(Math.random()-0.5)*4,vy:-Math.random()*3,life:26,max:26,col:'#ffd23f',sz:2});
   if(lives<=0){ gameOver(msg); return; }
   dlg=[{who:'—', line:msg+'\n残り '+lives+'。段取り 組み直して もう一度。'}];
   dlgActive=true; mode='clear'; pendingAction='retry';
 }
-var pendingAction='';
 function stageClear(){
   sfxClear(); score+=500;
   var h=nextHitokoto();
-  if(stageNo>=STAGES.length){
-    dlg=[{who:h.who,line:h.line}];
-    dlgActive=true; mode='clear'; pendingAction='ending';
-    return;
-  }
-  if(stageNo===3){
-    // 納期ドラゴンの間を抜けた ＝ どんでん返し
-    dlg=[{who:h.who,line:h.line}];
-    dlgActive=true; mode='clear'; pendingAction='twist';
-    return;
-  }
   dlg=[{who:h.who,line:h.line}];
-  dlgActive=true; mode='clear'; pendingAction='next';
+  dlgActive=true; mode='clear';
+  if(stageNo>=STAGES.length) pendingAction='ending';
+  else if(stageNo===3) pendingAction='twist';
+  else pendingAction='next';
 }
 function gameOver(msg){ mode='over'; overMsg=msg; dlg=[]; dlgActive=false; }
 
@@ -599,11 +633,10 @@ function startGame(){
   dlg=[
     {who:'—', line:'木曜の 練習会が また 流れた。\n工場が まるごと 迷宮に なっとる。'},
     {who:'佐藤さん', line:'今週も 猛暑や。電気代 見て\n目ん玉 飛び出たわ…。\n…て、省エネ 後回しに してたん 俺やけどな。'},
-    {who:'高林君', line:'お盆前の 前倒し 納期、山ほど 来とる。\n…段取り 組む 時間が 欲しいわ。'},
     {who:'高林君', line:'設備 更新の 稟議、"投資対効果は?" で\nピタッと 止まっとる…。\n…て、数字で 語れてへん 俺の 弱さや。'},
     {who:'岩田君', line:'各階に 落ちとる 金の 塊——\nあれ 全部 "粗利" や。\n拾い切らんと 木曜には 帰れんで。'},
-    {who:'ミヤカワくん', line:'ツルハシは "標準化"。\n足元の 床に カイゼン穴 掘って、\n追ってくる 面倒事を 落としたる。'},
-    {who:'ミヤカワくん', line:'…ただし 穴は そのうち 塞がる。\n長居は 禁物や。自分が 落ちたら\n↑を 押し続けて よじ登れ。'},
+    {who:'ミヤカワくん', line:'ツルハシは "標準化"。\n足元の 床に カイゼン穴 を 掘る。\n穴は 下の階への 近道にも なる。'},
+    {who:'ミヤカワくん', line:'追手が 落ちたら 頭の上を 走って 渡れ。\nただし 敵は 粗利を 持って 逃げる。\n穴に 落として 吐き出させるんや。'},
     {who:'案内人?', line:'スポンジマン「ぼくが 案内 するよ…\nこっちが 近道さ(にゅる)」'}
   ];
   dlgActive=true;
@@ -636,7 +669,7 @@ function stageIntro(n){
   var g=STAGE_GUCHI[n-1]||[];
   dlg=g.slice();
   if(dlg.length){ dlgActive=true; mode='clear'; pendingAction='go'; }
-  else { mode='play'; }
+  else mode='play';
 }
 function advanceDialog(){
   dlg.shift();
@@ -644,7 +677,7 @@ function advanceDialog(){
   dlgActive=false;
   if(mode==='intro'){ stageIntro(1); return; }
   if(mode==='twist'){ loadStage(4); stageIntro(4); return; }
-  if(mode==='win'){ return; }   // エンディング画面で待機
+  if(mode==='win') return;                       // エンディング画面で待機
   if(mode==='clear'){
     var a=pendingAction; pendingAction='';
     if(a==='go'){ mode='play'; return; }
@@ -659,15 +692,15 @@ function advanceDialog(){
 /* =========================================================================
    入力（タッチ / マウス / キーボード）
    ========================================================================= */
-var BTN_MUTE={x:W-27,y:4,w:24,h:22};
+var BTN_MUTE={x:W-34,y:6,w:30,h:26};
 var PAD={
-  up   :{x:56, y:432,w:48,h:48,lbl:'▲'},
-  left :{x:8,  y:484,w:48,h:48,lbl:'◀'},
-  right:{x:104,y:484,w:48,h:48,lbl:'▶'},
-  down :{x:56, y:536,w:48,h:48,lbl:'▼'}
+  up   :{x:82, y:560,w:66,h:66,lbl:'▲'},
+  left :{x:12, y:632,w:66,h:66,lbl:'◀'},
+  right:{x:152,y:632,w:66,h:66,lbl:'▶'},
+  down :{x:82, y:704,w:66,h:66,lbl:'▼'}
 };
-var DIG_L={x:206,y:470,w:66,h:66,lbl:'⛏左'};
-var DIG_R={x:284,y:470,w:66,h:66,lbl:'⛏右'};
+var DIG_L={x:268,y:600,w:96,h:96,lbl:'⛏左'};
+var DIG_R={x:372,y:600,w:96,h:96,lbl:'⛏右'};
 function inRect(p,r){ return p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h; }
 function canvasPos(cxp,cyp){
   var r=cv.getBoundingClientRect();
@@ -714,7 +747,7 @@ cv.addEventListener('touchmove',function(ev){
   refreshPad();
 },{passive:false});
 function endTouch(ev){
-  for(var i=0;i<ev.changedTouches.length;i++){ delete touchPts[ev.changedTouches[i].identifier]; }
+  for(var i=0;i<ev.changedTouches.length;i++) delete touchPts[ev.changedTouches[i].identifier];
   refreshPad();
 }
 window.addEventListener('touchend',endTouch,{passive:false});
@@ -732,7 +765,7 @@ cv.addEventListener('mousemove',function(ev){
 });
 window.addEventListener('mouseup',function(){ delete touchPts['m']; refreshPad(); });
 
-/* キーは code（物理キー）優先＝IME/かな入力でも効く。key も併用して取りこぼさない */
+/* キーは code（物理キー）優先＝IME/かな入力でも効く */
 function keyRole(ev){
   var c=ev.code||'', k=(ev.key||'').toLowerCase();
   if(c==='ArrowLeft' ||c==='KeyA'||k==='arrowleft' ||k==='a') return 'left';
@@ -777,25 +810,26 @@ window.addEventListener('keyup',keyUpHandler);
    ========================================================================= */
 function drawBG(){
   cx.fillStyle='#05070d'; cx.fillRect(0,0,W,H);
-  // 工場の薄いグリッド
   cx.fillStyle='rgba(70,90,120,.10)';
-  for(var r=0;r<ROWS;r++) cx.fillRect(FX,FY+r*T,COLS*T,1);
-  for(var c=0;c<COLS;c++) cx.fillRect(FX+c*T,FY,1,ROWS*T);
+  for(var r=0;r<=ROWS;r++) cx.fillRect(FX,FY+r*T,COLS*T,1);
+  for(var c=0;c<=COLS;c++) cx.fillRect(FX+c*T,FY,1,ROWS*T);
+}
+function drawBrick(x,y){
+  cx.fillStyle='#8a5a3c'; cx.fillRect(x,y,T,T);
+  cx.fillStyle='#6b4630'; cx.fillRect(x,y+T-3,T,3); cx.fillRect(x,y+9,T,2);
+  cx.fillStyle='#a9714a'; cx.fillRect(x+1,y+1,T-2,3);
+  cx.fillStyle='#6b4630'; cx.fillRect(x+9,y,2,9); cx.fillRect(x+4,y+11,2,7);
 }
 function drawTiles(){
   for(var r=0;r<ROWS;r++){
     for(var c=0;c<COLS;c++){
       var v=grid[r][c], x=FX+c*T, y=FY+r*T;
-      if(v===BRICK){
-        cx.fillStyle='#8a5a3c'; cx.fillRect(x,y,T,T);
-        cx.fillStyle='#6b4630'; cx.fillRect(x,y+T-3,T,3); cx.fillRect(x,y+9,T,2);
-        cx.fillStyle='#a9714a'; cx.fillRect(x+1,y+1,T-2,3);
-        cx.fillStyle='#6b4630'; cx.fillRect(x+9,y,2,9); cx.fillRect(x+4,y+11,2,7);
-      } else if(v===SOLID){
+      if(v===BRICK||v===FAKE){ drawBrick(x,y); }          // すり抜け床は 見た目そっくり
+      else if(v===SOLID){
         cx.fillStyle='#59626f'; cx.fillRect(x,y,T,T);
         cx.fillStyle='#3f4650'; cx.fillRect(x,y+T-3,T,3);
         cx.fillStyle='#79838f'; cx.fillRect(x+2,y+2,4,4); cx.fillRect(x+T-6,y+2,4,4);
-        cx.fillStyle='#79838f'; cx.fillRect(x+2,y+T-8,4,4); cx.fillRect(x+T-6,y+T-8,4,4);
+        cx.fillRect(x+2,y+T-8,4,4); cx.fillRect(x+T-6,y+T-8,4,4);
       } else if(v===LADDER||(v===EXIT&&exitOpen)){
         var lc=(v===EXIT)?(((t>>3)%2)?'#9fe8ff':'#5fc8ff'):'#c8d96a';
         cx.fillStyle=lc;
@@ -814,34 +848,36 @@ function drawTiles(){
     }
   }
 }
+function drawGoldPile(x,y,i){
+  var bob=((t+i*7)>>3)%2;
+  cx.fillStyle='#c99a1e'; cx.fillRect(x+3,y+9+bob,14,8);
+  cx.fillStyle='#ffd23f'; cx.fillRect(x+4,y+7+bob,12,7);
+  cx.fillStyle='#fff3b0'; cx.fillRect(x+5,y+8+bob,4,2);
+  cx.fillStyle='#7a5b0c'; cx.font='bold 9px sans-serif'; cx.textAlign='center';
+  cx.fillText('¥',x+T/2,y+14+bob);
+}
 function drawGold(){
   for(var i=0;i<gold.length;i++){
-    var g=gold[i]; if(g.got) continue;
-    var x=FX+g.c*T, y=FY+g.r*T;
-    var bob=((t+i*7)>>3)%2;
-    cx.fillStyle='#c99a1e'; cx.fillRect(x+3,y+9+bob,14,8);
-    cx.fillStyle='#ffd23f'; cx.fillRect(x+4,y+7+bob,12,7);
-    cx.fillStyle='#fff3b0'; cx.fillRect(x+5,y+8+bob,4,2);
-    cx.fillStyle='#7a5b0c'; cx.font='bold 8px sans-serif'; cx.textAlign='center';
-    cx.fillText('¥',x+T/2,y+14+bob);
+    var g=gold[i]; if(g.got||g.carried) continue;
+    drawGoldPile(FX+g.c*T,FY+g.r*T,i);
   }
 }
 /* --- 自分（約束戦士・ヘルメット＋作業服） --- */
 function drawMe(a){
+  if(a.grace>0 && (t>>2)%2===0) return;
   var x=FX+actorX(a)*T, y=FY+actorY(a)*T;
-  if(a.grace>0 && (t>>2)%2===0) return;   // 無敵中は点滅
   var walk=(a.moving&&a.tr===a.r)?((a.anim>>2)%2):0;
   var climb=(a.moving&&a.tr!==a.r)?((a.anim>>2)%2):0;
-  cx.fillStyle='#ffd23f'; cx.fillRect(x+5,y+2,10,5);          // ヘルメット
-  cx.fillStyle='#e8c07a'; cx.fillRect(x+6,y+7,8,3);           // 顔
-  cx.fillStyle='#4a86c8'; cx.fillRect(x+5,y+10,10,6);         // 作業服
+  cx.fillStyle='#ffd23f'; cx.fillRect(x+5,y+2,10,5);
+  cx.fillStyle='#e8c07a'; cx.fillRect(x+6,y+7,8,3);
+  cx.fillStyle='#4a86c8'; cx.fillRect(x+5,y+10,10,6);
   cx.fillStyle='#2d5a8a';
   if(climb){ cx.fillRect(x+3,y+10,3,4); cx.fillRect(x+14,y+12,3,4); }
-  else { cx.fillRect(x+2+(a.face>0?0:0),y+11,3,4); cx.fillRect(x+15,y+11,3,4); }
+  else { cx.fillRect(x+2,y+11,3,4); cx.fillRect(x+15,y+11,3,4); }
   cx.fillStyle='#22334a';
   if(walk){ cx.fillRect(x+4,y+16,4,4); cx.fillRect(x+12,y+16,4,3); }
   else { cx.fillRect(x+6,y+16,3,4); cx.fillRect(x+11,y+16,3,4); }
-  if(a.digLock>0){ // ツルハシを振る
+  if(a.digLock>0){
     cx.fillStyle='#d9d9d9';
     var dx=a.face>0?x+16:x-4;
     cx.fillRect(dx,y+6,6,2); cx.fillRect(a.face>0?dx+4:dx,y+4,2,6);
@@ -852,55 +888,58 @@ function drawEnemy(e){
   if(e.dead>0) return;
   var x=FX+actorX(e)*T, y=FY+actorY(e)*T;
   var col=EKIND[e.kind].col;
-  var sink=e.trap>0?4:0;
+  var sink=e.trap>0?5:0;
   var walk=(e.moving)?((e.anim>>2)%2):0;
-  if(e.trap>0 && (t>>2)%2===0) cx.globalAlpha=0.75;
+  if(e.trap>0 && (t>>2)%2===0) cx.globalAlpha=0.7;
   if(e.kind==='dragon'){
     cx.fillStyle=col; cx.fillRect(x+2,y+4+sink,16,12);
-    cx.fillStyle='#ffd23f'; cx.fillRect(x+3,y+1+sink,3,4); cx.fillRect(x+14,y+1+sink,3,4);  // 角
+    cx.fillStyle='#ffd23f'; cx.fillRect(x+3,y+1+sink,3,4); cx.fillRect(x+14,y+1+sink,3,4);
     cx.fillStyle='#2a0d12'; cx.fillRect(x+5,y+7+sink,3,3); cx.fillRect(x+12,y+7+sink,3,3);
     cx.fillStyle='#fff'; cx.fillRect(x+5,y+12+sink,10,2);
   } else if(e.kind==='gonge'){
     cx.fillStyle=col; cx.fillRect(x+2,y+3+sink,16,14);
-    cx.fillStyle='#c9a800';                                     // スポンジの穴
+    cx.fillStyle='#7fa832';
     cx.fillRect(x+4,y+5+sink,3,3); cx.fillRect(x+12,y+11+sink,3,3); cx.fillRect(x+8,y+14+sink,2,2);
-    cx.fillStyle='#3a2a00'; cx.font='bold 7px sans-serif'; cx.textAlign='center';
+    cx.fillStyle='#12300a'; cx.font='bold 8px sans-serif'; cx.textAlign='center';
     cx.fillText('¥',x+6,y+12+sink); cx.fillText('％',x+14,y+12+sink);
   } else {
-    cx.fillStyle=col; cx.fillRect(x+5,y+8+sink,10,8);           // 胴
-    cx.fillStyle='#e8c07a'; cx.fillRect(x+6,y+4+sink,8,4);      // 顔
+    cx.fillStyle=col; cx.fillRect(x+5,y+8+sink,10,8);
+    cx.fillStyle='#e8c07a'; cx.fillRect(x+6,y+4+sink,8,4);
     if(e.kind==='kyaku'){ cx.fillStyle='#fff'; cx.fillRect(x+9,y+9+sink,2,6); cx.fillStyle='#ff2e46'; cx.fillRect(x+9,y+9+sink,2,3); }
-    if(e.kind==='gaicyu'){ cx.fillStyle='#4a3b7a'; cx.fillRect(x+4,y+2+sink,12,3); cx.fillRect(x+6,y+0+sink,8,2); }
-    if(e.kind==='sagyo'){ cx.fillStyle='#eef3ff'; cx.fillRect(x+14,y+9+sink,3,5); }  // スマホ
+    if(e.kind==='gaicyu'){ cx.fillStyle='#4a3b7a'; cx.fillRect(x+4,y+2+sink,12,3); cx.fillRect(x+6,y+sink,8,2); }
+    if(e.kind==='sagyo'){ cx.fillStyle='#eef3ff'; cx.fillRect(x+14,y+9+sink,3,5); }
     cx.fillStyle='#2b2b38';
     if(walk){ cx.fillRect(x+4,y+16+sink,4,3); cx.fillRect(x+12,y+16+sink,4,3); }
     else { cx.fillRect(x+6,y+16+sink,3,3); cx.fillRect(x+11,y+16+sink,3,3); }
   }
+  if(e.hasGold>=0){   // 粗利を 抱えている
+    cx.fillStyle='#ffd23f'; cx.fillRect(x+7,y+1+sink,6,4);
+    cx.fillStyle='#c99a1e'; cx.fillRect(x+7,y+4+sink,6,1);
+  }
   cx.globalAlpha=1;
 }
 function drawHUD(){
-  cx.textAlign='left'; cx.fillStyle='#dfe8ff'; cx.font='bold 12px sans-serif';
-  cx.fillText('生産性 '+score,8,16);
-  cx.fillStyle='#ffd23f'; cx.font='bold 12px sans-serif';
-  cx.fillText('粗利 '+(goldTotal-goldLeft)+'/'+goldTotal,110,16);
-  // 残機（ヘルメット）
-  for(var i=0;i<lives;i++){ var lx=8+i*16, ly=26;
-    cx.fillStyle='#ffd23f'; cx.fillRect(lx,ly,10,5); cx.fillStyle='#4a86c8'; cx.fillRect(lx+1,ly+5,8,3); }
-  cx.textAlign='right'; cx.fillStyle='#9fb0d0'; cx.font='11px sans-serif';
-  cx.fillText('STAGE '+stageNo+'/'+STAGES.length,W-36,16);
-  cx.fillStyle='#7f8fa8'; cx.font='10px sans-serif';
-  cx.fillText(STAGES[stageNo-1]?STAGES[stageNo-1].name:'',W-8,32);
+  cx.textAlign='left'; cx.fillStyle='#dfe8ff'; cx.font='bold 16px sans-serif';
+  cx.fillText('生産性 '+score,10,24);
+  cx.fillStyle='#ffd23f';
+  cx.fillText('粗利 '+(goldTotal-goldLeft)+'/'+goldTotal,160,24);
+  for(var i=0;i<lives;i++){ var lx=10+i*20, ly=32;
+    cx.fillStyle='#ffd23f'; cx.fillRect(lx,ly,12,6); cx.fillStyle='#4a86c8'; cx.fillRect(lx+1,ly+6,10,4); }
+  cx.textAlign='right'; cx.fillStyle='#9fb0d0'; cx.font='14px sans-serif';
+  cx.fillText('STAGE '+stageNo+'/'+STAGES.length,W-46,22);
+  cx.fillStyle='#7f8fa8'; cx.font='12px sans-serif';
+  cx.fillText(STAGES[stageNo-1]?STAGES[stageNo-1].name:'',W-10,42);
   drawMuteBtn();
 }
 function drawMuteBtn(){
   cx.fillStyle='#223'; cx.fillRect(BTN_MUTE.x,BTN_MUTE.y,BTN_MUTE.w,BTN_MUTE.h);
-  cx.fillStyle='#9fb0d0'; cx.font='12px sans-serif'; cx.textAlign='center';
-  cx.fillText(AUDIO.muted?'🔇':'🔊',BTN_MUTE.x+BTN_MUTE.w/2,BTN_MUTE.y+15);
+  cx.fillStyle='#9fb0d0'; cx.font='15px sans-serif'; cx.textAlign='center';
+  cx.fillText(AUDIO.muted?'🔇':'🔊',BTN_MUTE.x+BTN_MUTE.w/2,BTN_MUTE.y+19);
 }
 function drawMsg(){
-  cx.textAlign='center'; cx.font='11px sans-serif';
+  cx.textAlign='center'; cx.font='14px sans-serif';
   cx.fillStyle=exitOpen?'#7ad1ff':'#8fa4c8';
-  cx.fillText(msgLine,W/2,FY+ROWS*T+18);
+  cx.fillText(msgLine,W/2,FY+ROWS*T+24);
 }
 function btn(b,active){
   cx.fillStyle=active?'#2f4a70':'#1a2334';
@@ -908,27 +947,26 @@ function btn(b,active){
   cx.strokeStyle=active?'#7ad1ff':'#33415c'; cx.lineWidth=2;
   cx.strokeRect(b.x+1,b.y+1,b.w-2,b.h-2);
   cx.fillStyle=active?'#eaf6ff':'#9fb0d0';
-  cx.font='bold '+(b.w>50?14:16)+'px sans-serif'; cx.textAlign='center';
-  cx.fillText(b.lbl,b.x+b.w/2,b.y+b.h/2+6);
+  cx.font='bold '+(b.w>80?20:22)+'px sans-serif'; cx.textAlign='center';
+  cx.fillText(b.lbl,b.x+b.w/2,b.y+b.h/2+8);
 }
 function drawControls(){
   var L=pad.left||keyPad.left, R=pad.right||keyPad.right, U=pad.up||keyPad.up, D=pad.down||keyPad.down;
   btn(PAD.up,U); btn(PAD.left,L); btn(PAD.right,R); btn(PAD.down,D);
   btn(DIG_L,false); btn(DIG_R,false);
-  cx.fillStyle='#5a6b86'; cx.font='10px sans-serif'; cx.textAlign='center';
-  cx.fillText('走る・のぼる（←→↑↓）',80,600);
-  cx.fillText('足元の 床に カイゼン穴',283,556);
-  cx.fillText('（穴は そのうち 塞がる）',283,570);
-  // PC向けキー表示
-  cx.fillStyle='#7ad1ff'; cx.font='bold 10px sans-serif';
-  cx.fillText('Z',DIG_L.x+DIG_L.w/2,DIG_L.y+DIG_L.h-8);
-  cx.fillText('X',DIG_R.x+DIG_R.w/2,DIG_R.y+DIG_R.h-8);
+  cx.fillStyle='#7ad1ff'; cx.font='bold 13px sans-serif'; cx.textAlign='center';
+  cx.fillText('Z',DIG_L.x+DIG_L.w/2,DIG_L.y+DIG_L.h-10);
+  cx.fillText('X',DIG_R.x+DIG_R.w/2,DIG_R.y+DIG_R.h-10);
+  cx.fillStyle='#5a6b86'; cx.font='13px sans-serif';
+  cx.fillText('走る・のぼる（←→↑↓）',115,800);
+  cx.fillText('足元の 床に カイゼン穴',368,724);
+  cx.fillText('穴＝下の階への 近道／罠',368,744);
 }
 function drawFloaters(){
   cx.textAlign='center';
   for(var i=0;i<floaters.length;i++){ var f=floaters[i];
     cx.globalAlpha=Math.min(1,f.tt/20);
-    cx.fillStyle=f.col; cx.font=(f.big?'bold 13px':'bold 10px')+' sans-serif';
+    cx.fillStyle=f.col; cx.font=(f.big?'bold 17px':'bold 13px')+' sans-serif';
     cx.fillText(f.txt,f.x,f.y);
   }
   cx.globalAlpha=1;
@@ -941,87 +979,89 @@ function drawParts(){
 function drawDialog(){
   if(!dlgActive||dlg.length===0) return;
   var d=dlg[0];
-  var bh=126, by=H-bh-8, bx=10, bw=W-20;
+  var bh=168, by=H-bh-10, bx=14, bw=W-28;
   cx.fillStyle='rgba(6,10,22,.95)'; cx.fillRect(bx,by,bw,bh);
   cx.strokeStyle='#3a5a8a'; cx.lineWidth=2; cx.strokeRect(bx,by,bw,bh);
   cx.textAlign='left';
-  cx.fillStyle='#ffd23f'; cx.font='bold 13px sans-serif';
-  cx.fillText(d.who,bx+12,by+22);
-  cx.fillStyle='#eef3ff'; cx.font='12px sans-serif';
+  cx.fillStyle='#ffd23f'; cx.font='bold 17px sans-serif';
+  cx.fillText(d.who,bx+16,by+30);
+  cx.fillStyle='#eef3ff'; cx.font='16px sans-serif';
   var lines=d.line.split('\n');
-  for(var i=0;i<lines.length;i++) cx.fillText(lines[i],bx+12,by+44+i*17);
-  cx.fillStyle='#8fa4c8'; cx.font='10px sans-serif'; cx.textAlign='right';
-  cx.fillText('▼ タップで送る',bx+bw-10,by+bh-8);
+  for(var i=0;i<lines.length;i++) cx.fillText(lines[i],bx+16,by+60+i*23);
+  cx.fillStyle='#8fa4c8'; cx.font='13px sans-serif'; cx.textAlign='right';
+  cx.fillText('▼ タップ／Z・X で 送る',bx+bw-12,by+bh-12);
 }
 function drawTitle(){
   cx.fillStyle='#05070d'; cx.fillRect(0,0,W,H);
   cx.textAlign='center';
-  cx.fillStyle='#ffd23f'; cx.font='bold 24px sans-serif';
-  cx.fillText('粗利ランナー',W/2,120);
-  cx.fillStyle='#7ad1ff'; cx.font='bold 17px sans-serif';
-  cx.fillText('迷宮工場',W/2,146);
-  cx.fillStyle='#9fb0d0'; cx.font='11px sans-serif';
-  cx.fillText('木曜日の迷宮 Vol.6 改',W/2,168);
-  cx.fillStyle='#5a7a9a'; cx.font='9px sans-serif';
-  cx.fillText('— ロードランナー風味オマージュ —',W/2,184);
+  cx.fillStyle='#ffd23f'; cx.font='bold 32px sans-serif';
+  cx.fillText('粗利ランナー',W/2,150);
+  cx.fillStyle='#7ad1ff'; cx.font='bold 23px sans-serif';
+  cx.fillText('迷宮工場',W/2,186);
+  cx.fillStyle='#9fb0d0'; cx.font='15px sans-serif';
+  cx.fillText('木曜日の迷宮 Vol.6 改',W/2,214);
+  cx.fillStyle='#5a7a9a'; cx.font='12px sans-serif';
+  cx.fillText('— ロードランナー風味オマージュ —',W/2,236);
   // デモ絵
-  var bx=40, by=206;
-  cx.fillStyle='#8a5a3c'; cx.fillRect(bx,by+20,280,8);
-  cx.fillStyle='#c99a1e'; cx.fillRect(bx+70,by+11,14,8); cx.fillStyle='#ffd23f'; cx.fillRect(bx+71,by+9,12,7);
-  cx.fillStyle='#c8d96a'; cx.fillRect(bx+150,by-6,3,26); cx.fillRect(bx+161,by-6,3,26);
-  for(var k=-4;k<24;k+=6) cx.fillRect(bx+150,by+k,14,2);
-  cx.fillStyle='#ffd23f'; cx.fillRect(bx+8,by+4,10,5);
-  cx.fillStyle='#4a86c8'; cx.fillRect(bx+8,by+12,10,6);
-  cx.fillStyle='#ff6a6a'; cx.fillRect(bx+230,by+12,10,8);
-  cx.fillStyle='#e8c07a'; cx.fillRect(bx+231,by+8,8,4);
-  cx.fillStyle='#cdd8f0'; cx.font='12px sans-serif';
-  cx.fillText('迷宮化した 工場に 落ちた「粗利」を',W/2,278);
-  cx.fillText('ぜんぶ 拾って 屋上へ 脱出せよ',W/2,296);
-  cx.fillStyle='#8fa4c8'; cx.font='11px sans-serif';
-  cx.fillText('・十字ボタンで 走る／はしごを のぼる',W/2,326);
-  cx.fillText('・⛏ボタンで 足元の 床に カイゼン穴',W/2,344);
-  cx.fillText('・追手を 穴に 落とす（穴は やがて 塞がる）',W/2,362);
-  cx.fillText('・ハマった敵の 頭の上は 走って 渡れる',W/2,380);
-  cx.fillText('・鋼材（灰色）は 掘れない／自分が 落ちたら ↑長押し',W/2,398);
-  cx.fillText('・大ボス 納期ドラゴン、案内人の 正体は ROIC…',W/2,416);
-  cx.fillStyle='#7ad1ff'; cx.font='bold 11px sans-serif';
-  cx.fillText('PC：←→↑↓ で 走る／Z＝左を掘る・X＝右を掘る',W/2,442);
-  cx.fillStyle='#5a7a9a'; cx.font='10px sans-serif';
-  cx.fillText('（画面を 一度 クリックしてから キーを 押してください）',W/2,460);
-  cx.fillStyle=((t>>4)%2===0)?'#fff':'#5a7'; cx.font='bold 15px sans-serif';
-  cx.fillText('TAP TO START',W/2,500);
-  cx.fillStyle='#3f4d63'; cx.font='9px sans-serif';
-  cx.fillText('OHMAMA SOFT / 約束戦士4人の 木曜を 取り戻せ',W/2,susY());
+  var bx=60, by=270;
+  for(var i=0;i<18;i++) drawBrick(bx+i*20,by+20);
+  cx.fillStyle='#c8d96a';
+  cx.fillRect(bx+200,by-10,3,30); cx.fillRect(bx+211,by-10,3,30);
+  for(var k=-8;k<22;k+=6) cx.fillRect(bx+200,by+k,14,2);
+  drawGoldPile(bx+100,by,0);
+  cx.fillStyle='#ffd23f'; cx.fillRect(bx+25,by+2,10,5);
+  cx.fillStyle='#e8c07a'; cx.fillRect(bx+26,by+7,8,3);
+  cx.fillStyle='#4a86c8'; cx.fillRect(bx+25,by+10,10,6);
+  cx.fillStyle='#ff6a6a'; cx.fillRect(bx+300,by+8,10,8);
+  cx.fillStyle='#e8c07a'; cx.fillRect(bx+301,by+4,8,4);
+  cx.fillStyle='#cdd8f0'; cx.font='16px sans-serif';
+  cx.fillText('迷宮化した 工場に 落ちた「粗利」を',W/2,360);
+  cx.fillText('ぜんぶ 拾って 屋上へ 脱出せよ',W/2,384);
+  cx.fillStyle='#8fa4c8'; cx.font='14px sans-serif';
+  cx.fillText('・十字ボタンで 走る／はしごを のぼる',W/2,428);
+  cx.fillText('・⛏で 足元の 床に カイゼン穴を 掘る',W/2,452);
+  cx.fillText('・穴は 下の階への 近道。落ちて 進める',W/2,476);
+  cx.fillText('・追手を 穴に 落とし、頭の上を 走って 渡る',W/2,500);
+  cx.fillText('・敵は 粗利を 持ち逃げする。穴で 吐かせろ',W/2,524);
+  cx.fillText('・鋼材（灰色）は 掘れない／踏み抜ける 床もある',W/2,548);
+  cx.fillText('・大ボス 納期ドラゴン、案内人の 正体は ROIC…',W/2,572);
+  cx.fillStyle='#7ad1ff'; cx.font='bold 15px sans-serif';
+  cx.fillText('PC：←→↑↓ で 走る／Z＝左を掘る・X＝右を掘る',W/2,610);
+  cx.fillStyle='#5a7a9a'; cx.font='13px sans-serif';
+  cx.fillText('（画面を 一度 クリックしてから キーを 押してください）',W/2,632);
+  cx.fillStyle=((t>>4)%2===0)?'#fff':'#5a7'; cx.font='bold 20px sans-serif';
+  cx.fillText('TAP TO START',W/2,690);
+  cx.fillStyle='#3f4d63'; cx.font='12px sans-serif';
+  cx.fillText('OHMAMA SOFT / 約束戦士4人の 木曜を 取り戻せ',W/2,740);
   drawMuteBtn();
 }
-function susY(){ return 540; }
 function drawOver(){
   cx.fillStyle='rgba(4,6,12,.78)'; cx.fillRect(0,0,W,H);
   cx.textAlign='center';
-  cx.fillStyle='#ff5a6e'; cx.font='bold 20px sans-serif';
-  cx.fillText('撤退…',W/2,H/2-50);
-  cx.fillStyle='#eef3ff'; cx.font='13px sans-serif';
-  cx.fillText(overMsg,W/2,H/2-20);
-  cx.fillStyle='#9fb0d0'; cx.font='12px sans-serif';
-  cx.fillText('生産性 '+score,W/2,H/2+10);
-  cx.fillText('段取り 直して また 木曜に。',W/2,H/2+34);
-  cx.fillStyle=((t>>4)%2===0)?'#fff':'#5a7'; cx.font='bold 13px sans-serif';
-  cx.fillText('TAP TO RETRY',W/2,H/2+76);
+  cx.fillStyle='#ff5a6e'; cx.font='bold 26px sans-serif';
+  cx.fillText('撤退…',W/2,H/2-70);
+  cx.fillStyle='#eef3ff'; cx.font='17px sans-serif';
+  cx.fillText(overMsg,W/2,H/2-28);
+  cx.fillStyle='#9fb0d0'; cx.font='16px sans-serif';
+  cx.fillText('生産性 '+score,W/2,H/2+12);
+  cx.fillText('段取り 直して また 木曜に。',W/2,H/2+44);
+  cx.fillStyle=((t>>4)%2===0)?'#fff':'#5a7'; cx.font='bold 17px sans-serif';
+  cx.fillText('TAP TO RETRY',W/2,H/2+100);
 }
 function drawWinEnd(){
   cx.fillStyle='rgba(4,10,8,.80)'; cx.fillRect(0,0,W,H);
   cx.textAlign='center';
-  cx.fillStyle='#ffd23f'; cx.font='bold 20px sans-serif';
-  cx.fillText('木曜、取り戻した',W/2,H/2-60);
-  cx.fillStyle='#eef3ff'; cx.font='12px sans-serif';
-  cx.fillText('文句のようで、その実',W/2,H/2-28);
-  cx.fillText('いちばん 現場を 想っている。',W/2,H/2-8);
-  cx.fillStyle='#9fe8ff'; cx.font='bold 14px sans-serif';
-  cx.fillText('最終 生産性 '+score,W/2,H/2+30);
-  cx.fillStyle='#8fa4c8'; cx.font='11px sans-serif';
-  cx.fillText('粗利は 拾うもんやない、貯まる 仕組みを 作るもんや。',W/2,H/2+58);
-  cx.fillStyle=((t>>4)%2===0)?'#fff':'#5a7'; cx.font='bold 13px sans-serif';
-  cx.fillText('TAP TO TITLE',W/2,H/2+96);
+  cx.fillStyle='#ffd23f'; cx.font='bold 26px sans-serif';
+  cx.fillText('木曜、取り戻した',W/2,H/2-80);
+  cx.fillStyle='#eef3ff'; cx.font='16px sans-serif';
+  cx.fillText('文句のようで、その実',W/2,H/2-36);
+  cx.fillText('いちばん 現場を 想っている。',W/2,H/2-10);
+  cx.fillStyle='#9fe8ff'; cx.font='bold 18px sans-serif';
+  cx.fillText('最終 生産性 '+score,W/2,H/2+40);
+  cx.fillStyle='#8fa4c8'; cx.font='14px sans-serif';
+  cx.fillText('粗利は 拾うもんやない、貯まる 仕組みを 作るもんや。',W/2,H/2+76);
+  cx.fillStyle=((t>>4)%2===0)?'#fff':'#5a7'; cx.font='bold 17px sans-serif';
+  cx.fillText('TAP TO TITLE',W/2,H/2+126);
 }
 
 function render(){
@@ -1054,14 +1094,15 @@ if(typeof module!=='undefined'){
     STAGES:STAGES, TUNE:TUNE, COLS:COLS, ROWS:ROWS,
     startGame:startGame, loadStage:loadStage, advanceDialog:advanceDialog,
     tryDig:tryDig, update:update, render:render,
-    tileAt:tileAt, climbT:climbT, passable:passable, solidT:solidT, nodeSupported:nodeSupported,
+    tileAt:tileAt, climbT:climbT, passable:passable, solidT:solidT,
+    nodeSupported:nodeSupported, trappedEnemyAt:trappedEnemyAt,
     setPad:function(o){ pad={left:!!o.left,right:!!o.right,up:!!o.up,down:!!o.down}; },
     get mode(){return mode;}, set mode(v){mode=v;},
     get player(){return player;}, get enemies(){return enemies;},
-    get gold(){return gold;}, get goldLeft(){return goldLeft;}, set goldLeft(v){goldLeft=v;},
+    get gold(){return gold;}, get goldLeft(){return goldLeft;},
     get exitOpen(){return exitOpen;}, get stageNo(){return stageNo;},
     get lives(){return lives;}, get score(){return score;}, get dlg(){return dlg;},
-    openExit:openExit
+    get holes(){return holes;}
   };
 }
 </script>
