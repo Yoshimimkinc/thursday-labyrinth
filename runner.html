@@ -63,7 +63,13 @@ var TUNE={
   GRACE:       90,     // ステージ開始／復帰直後の無敵
   LIVES:       5,
   AI_TICK:     6,      // 敵AIの経路再計算の間隔
-  GOLD_GRAB:   0.7     // 敵が足元の粗利を拾う確率
+  GOLD_GRAB:   0.7,    // 敵が足元の粗利を拾う確率
+  /* --- 敵がはしごの前で"たむろ"して詰まないための気まぐれ --- */
+  WHIM_MIN:    360,    // 何もなくても たまに追跡をやめる間隔（下限）
+  WHIM_RND:    360,    // 同 ばらつき
+  SCATTER:     110,    // 追跡をやめて散っている時間
+  STILL_MAX:   90,     // 動かずに張り込んだら 強制的に散る
+  ROUTE_JITTER:0.8     // 経路のばらつき（同じ道に固まらない）
 };
 
 var PARTY=['佐藤さん','岩田君','高林君','ミヤカワくん'];
@@ -97,18 +103,18 @@ var FX=0, FY=54;                 // 盤面の左上（上はHUD）
    ========================================================================= */
 var STAGES=[
 { name:'1F 受注の谷', enemies:['kyaku','gaicyu'], map:[
-"           X            ",
-"           X            ",
-"           X            ",
-"  $  H     X      H $   ",
+"           X          X ",
+"           X          X ",
+"           X          X ",
+"  $  H     X      H $ X ",
 "#####H####====####H#####",
 "     H            H     ",
 " $   H   H  E H   H  $  ",
 "#########H####H#########",
 "         H    H         ",
-"  H $ E  H    H  ------ ",
-"##H#########V####      #",
-"  H                     ",
+"  H $ E  H    H  ---H-- ",
+"##H#########V####   H  #",
+"  H                 H   ",
 "  H    H $     $    H   ",
 "###===#H############H###",
 "       H            H   ",
@@ -116,10 +122,10 @@ var STAGES=[
 "========================"
 ]},
 { name:'2F 外注さんの回廊', enemies:['kyaku','gaicyu','sagyo'], map:[
-"               X        ",
-"               X        ",
-"               X        ",
-"  $     H   $  X   H  $ ",
+"    X          X        ",
+"    X          X        ",
+"    X          X        ",
+"  $ X   H   $  X   H  $ ",
 "########H##########H####",
 "        H          H    ",
 "  H-----H $  H  E  H    ",
@@ -135,10 +141,10 @@ var STAGES=[
 "========================"
 ]},
 { name:'3F 納期ドラゴンの間', enemies:['kyaku','sagyo','gaicyu'], map:[
-"      X                 ",
-"      X                 ",
-"      X                 ",
-" $    X    H  $  $   H  ",
+"      X            X    ",
+"      X            X    ",
+"      X            X    ",
+" $    X    H  $  $ X H  ",
 "##====#####H#########H##",
 "           H         H  ",
 "  E  H  $  H   H   $ H  ",
@@ -154,10 +160,10 @@ var STAGES=[
 "========================"
 ]},
 { name:'屋上 ROIC経営の間', enemies:['gaicyu','sagyo'], map:[
-"            X           ",
-"            X           ",
-"            X           ",
-" $  H   $   X   $   H $ ",
+"       X    X           ",
+"       X    X           ",
+"       X    X           ",
+" $  H  X$   X   $   H $ ",
 "####H###############H###",
 "    H               H   ",
 "  E H  H ------ H   H E ",
@@ -334,7 +340,8 @@ function loadStage(n){
 }
 function mkActor(c,r,kind){
   return { c:c, r:r, tc:c, tr:r, p:0, moving:false, mode:'', kind:kind,
-           face:1, anim:0, trap:0, dead:0, digLock:0, climbHold:0, grace:0, hasGold:-1 };
+           face:1, anim:0, trap:0, dead:0, digLock:0, climbHold:0, grace:0, hasGold:-1,
+           still:0, scatter:0, whim:TUNE.WHIM_MIN+Math.random()*TUNE.WHIM_RND };
 }
 function actorX(a){ return (a.c+(a.tc-a.c)*a.p); }
 function actorY(a){ return (a.r+(a.tr-a.r)*a.p); }
@@ -507,23 +514,47 @@ function distAt(c,r){
   if(c<0||c>=COLS||r<0||r>=ROWS) return -1;
   return dist?dist[c+r*COLS]:-1;
 }
+/* そのマスに 別の敵が居る／向かっているか（重なり＝人垣を防ぐ） */
+function enemyOccupied(c,r,self){
+  for(var i=0;i<enemies.length;i++){
+    var o=enemies[i];
+    if(o===self||o.dead>0) continue;
+    if(o.c===c&&o.r===r) return true;
+    if(o.moving&&o.tc===c&&o.tr===r) return true;
+  }
+  return false;
+}
 function enemyThink(e){
   var opts=[];
   var cur=tileAt(e.c,e.r);
-  if(cur!==HOLE && passable(tileAt(e.c,e.r+1))) opts.push({wx:0,wy:1,d:distAt(e.c,e.r+1)});
-  if(climbT(cur)&&climbT(tileAt(e.c,e.r-1))) opts.push({wx:0,wy:-1,d:distAt(e.c,e.r-1)});
-  if(nodeSupported(e.c,e.r)){
-    if(passable(tileAt(e.c-1,e.r))) opts.push({wx:-1,wy:0,d:distAt(e.c-1,e.r)});
-    if(passable(tileAt(e.c+1,e.r))) opts.push({wx:1,wy:0,d:distAt(e.c+1,e.r)});
+  function add(dc,dr,wx,wy){
+    var c=e.c+dc, r=e.r+dr;
+    opts.push({wx:wx,wy:wy,d:distAt(c,r),occ:enemyOccupied(c,r,e)});
   }
-  var best=null;
-  for(var i=0;i<opts.length;i++){
-    var o=opts[i]; if(o.d<0) continue;
-    if(!best||o.d<best.d) best=o;
+  if(cur!==HOLE && passable(tileAt(e.c,e.r+1))) add(0,1,0,1);
+  if(climbT(cur)&&climbT(tileAt(e.c,e.r-1))) add(0,-1,0,-1);
+  if(nodeSupported(e.c,e.r)){
+    if(passable(tileAt(e.c-1,e.r))) add(-1,0,-1,0);
+    if(passable(tileAt(e.c+1,e.r))) add(1,0,1,0);
+  }
+  // 散り中／他の敵と重なっている時は プレイヤーから 遠ざかる（はしご前の 人垣を ほどく）
+  var overlapped=enemyOccupied(e.c,e.r,e);
+  var away=(e.scatter>0)||overlapped;
+  var best=null, bestScore=0, i, o, sc;
+  for(i=0;i<opts.length;i++){
+    o=opts[i];
+    if(o.d<0||o.occ) continue;                       // 先客が居るマスへは 入らない
+    sc=(away?-o.d:o.d)+Math.random()*TUNE.ROUTE_JITTER;
+    if(!best||sc<bestScore){ best=o; bestScore=sc; }
   }
   if(best) return best;
-  var dir=(player.c>e.c)?1:-1;
-  return {wx:dir,wy:0,d:0};
+  // 行き先が塞がっている／プレイヤーへ道が無い時：重なっているなら とにかく空きへ逃げる
+  if(overlapped||e.scatter>0||e.still>TUNE.STILL_MAX){
+    var free=[];
+    for(i=0;i<opts.length;i++) if(!opts[i].occ) free.push(opts[i]);
+    if(free.length) return free[(Math.random()*free.length)|0];
+  }
+  return {wx:0,wy:0,d:0};                            // 動かない（＝人垣を作らない）
 }
 
 /* =========================================================================
@@ -577,8 +608,20 @@ function updatePlay(){
       continue;
     }
     if(!e.moving) e.trap=0;
+    // 気まぐれ／張り込み解除：たまに追跡をやめて散る（はしご前で 詰まないように）
+    if(e.scatter>0) e.scatter--;
+    else {
+      e.whim--;
+      if(e.whim<=0 || e.still>TUNE.STILL_MAX){
+        e.scatter=TUNE.SCATTER;
+        e.whim=TUNE.WHIM_MIN+Math.random()*TUNE.WHIM_RND;
+        e.still=0;
+      }
+    }
+    var wasC=e.c, wasR=e.r;
     var mv=enemyThink(e);
     actorUpdate(e,mv.wx,mv.wy);
+    if(!e.moving && e.c===wasC && e.r===wasR) e.still++; else e.still=0;
     e.anim++;
   }
   // --- 接触判定（開始直後は無敵） ---
