@@ -63,15 +63,15 @@ var TUNE={
   GRACE:       150,    // ステージ開始／復帰直後の無敵
   LIVES:       5,
   AI_TICK:     6,      // 敵AIの経路再計算の間隔
-  GOLD_GRAB:   0.7,    // 敵が足元の粗利を拾う確率
+  GOLD_GRAB:   1.0,    // 敵は 足元の粗利を 必ず拾う（落として 吐かせる のが 肝）
+  BOSS_TRAPS:  3,      // 屋上：ROIC経営モンスターを 何回 穴に落とせばよいか
+  GONGE_ESCAPE:150,    // 権化は 穴から すぐ這い上がる
   /* --- 敵がはしごの前で"たむろ"して詰まないための仕組み --- */
-  WHIM_MIN:    300,    // 何もなくても たまに追跡をやめる間隔（下限）
-  WHIM_RND:    240,    // 同 ばらつき
-  SCATTER:     220,    // 追跡をやめて散っている時間（約3.7秒）
-  STILL_MAX:   60,     // 動かずに張り込んだら 強制的に散る
-  NOIMP_MAX:   120,    // 2秒 詰め寄れていない＝待ち伏せ とみなして散る
-  KEEP_AWAY:   3,      // 散っている間 プレイヤーに近づかない距離
-  ROUTE_JITTER:0.8     // 経路のばらつき（同じ道に固まらない）
+  SCATTER:     120,    // 追跡をやめて散る時間（2秒・詰み解除のときだけ）
+  STILL_MAX:   90,     // 動けないまま張り込んだら 散る
+  NOIMP_MAX:   300,    // プレイヤーが動かないのに 5秒 詰め寄れない＝封鎖 とみなす
+  BLOCK_RANGE: 6,      // その判定を するのは プレイヤーの近く(6マス以内)だけ＝遠くの敵は ひたすら追う
+  ROUTE_JITTER:0.6     // 経路のばらつき（同じ道に固まらない）
 };
 
 var PARTY=['佐藤さん','岩田君','高林君','ミヤカワくん'];
@@ -123,7 +123,7 @@ var STAGES=[
 " P  $  H   $    $   H $ ",
 "========================"
 ]},
-{ name:'2F 外注さんの回廊', enemies:['kyaku','gaicyu'], map:[
+{ name:'2F 外注さんの回廊', enemies:['kyaku','gaicyu','sagyo'], map:[
 "    X          X        ",
 "    X          X        ",
 "    X          X        ",
@@ -136,20 +136,20 @@ var STAGES=[
 "  H  $ E  H  H   $   H  ",
 "#####V####H##########H##",
 "          H          H  ",
-"    H ----H  $  H  $ H  ",
+"  E H ----H  $  H  $ H  ",
 "####H#    ######H#######",
 "    H           H       ",
 " P  H   $    $  H   $   ",
 "========================"
 ]},
-{ name:'3F 納期ドラゴンの間', enemies:['sagyo'], map:[
+{ name:'3F 納期ドラゴンの間', enemies:['kyaku','sagyo'], map:[
 "      X            X    ",
 "      X            X    ",
 "      X            X    ",
 " $    X    H  $  $ X H  ",
 "##====#####H#########H##",
 "           H         H  ",
-"     H  $  H   H   $ H  ",
+"  E  H  $  H   H   $ H  ",
 "#####H#########H########",
 "     H         H        ",
 "  $  H  H   $E H -----H ",
@@ -161,14 +161,14 @@ var STAGES=[
 " P H   $    $      H  $ ",
 "========================"
 ]},
-{ name:'屋上 ROIC経営の間', enemies:['gaicyu'], map:[
+{ name:'屋上 ROIC経営の間', enemies:['gaicyu','sagyo'], map:[
 "       X    X           ",
 "       X    X           ",
 "       X    X           ",
 " $  H  X$   X   $   H $ ",
 "####H###############H###",
 "    H               H   ",
-"  E H  H ------ H   H   ",
+"  E H  H ------ H   H E ",
 "#######H#      #H#######",
 "       H        H       ",
 "  H  $ H  $ H   H  $  H ",
@@ -184,11 +184,11 @@ var STAGES=[
 
 /* 敵（経営あるある）の種類 */
 var EKIND={
-  kyaku : {name:'お客様',              col:'#ff6a6a', spd:0.034},
-  gaicyu: {name:'がいちゅうさん',      col:'#b48cff', spd:0.031},
-  sagyo : {name:'やる気のないさぎょういん', col:'#7fa8c9', spd:0.028},
-  dragon: {name:'納期ドラゴン',        col:'#ff8a3d', spd:0.040},
-  gonge : {name:'ROIC経営モンスター',  col:'#b6ff6e', spd:0.050}
+  kyaku : {name:'お客様',              col:'#ff6a6a', spd:0.052},
+  gaicyu: {name:'がいちゅうさん',      col:'#b48cff', spd:0.048},
+  sagyo : {name:'やる気のないさぎょういん', col:'#7fa8c9', spd:0.044},
+  dragon: {name:'納期ドラゴン',        col:'#ff8a3d', spd:0.058},
+  gonge : {name:'ROIC経営モンスター',  col:'#b6ff6e', spd:0.072}
 };
 
 /* 各ステージ開始時の"経営者あるある"愚痴（最後は必ず自省で着地） */
@@ -199,7 +199,7 @@ var STAGE_GUCHI=[
    {who:'ミヤカワくん', line:'出たな 納期ドラゴン。\n8月を 食って 7月に 来よった。'}],
   [{who:'ROIC経営モンスター', line:'投資対効果の 薄い 設備投資は\nダメ・ダメ・ダメ! 償却 何年? 稼働率は?\n…その 更新、ROIC 下げるだけだよ?'},
    {who:'ミヤカワくん', line:'…痛い とこ 突きよる。\nけど 数字で 詰めるだけの 経営は\n現場を 干からびさす。'},
-   {who:'ミヤカワくん', line:'屋上や。ここで 決める。\n走って 掘って 拾い切る——それが 現場の 答えや。'}]
+   {who:'ミヤカワくん', line:'屋上や。粗利を 拾い切って、\nさらに 権化を 3回 穴に 落とす。\n数字の 化け物を 現場の 段取りで 黙らせたる。'}]
 ];
 
 /* =========================================================================
@@ -219,6 +219,8 @@ var dlg=[], dlgActive=false;
 var overMsg='';
 var msgLine='';
 var pendingAction='';
+var lastPC=-1, lastPR=-1;
+var bossNeed=0, bossTraps=0;   // 屋上：権化を穴に落とした回数
 
 /* 入力 */
 var pad={left:false,right:false,up:false,down:false};
@@ -332,6 +334,7 @@ function loadStage(n){
     grid.push(row);
   }
   goldTotal=gold.length; goldLeft=goldTotal;
+  bossNeed=(n===STAGES.length)?TUNE.BOSS_TRAPS:0; bossTraps=0;
   player=mkActor(pStart.c,pStart.r,'me');
   player.grace=TUNE.GRACE;
   for(var i=0;i<enemyStarts.length;i++){
@@ -351,13 +354,12 @@ function retryStage(){
   goldLeft=goldTotal-n;
   score=sc;
   if(n>0) floaters.push({txt:'拾った 粗利は そのまま（'+n+'/'+goldTotal+'）',x:W/2,y:FY+50,tt:150,col:'#ffd23f',big:true});
-  if(goldLeft<=0){ exitOpen=true; msgLine='粗利 回収 完了 — 屋上へ 脱出せよ'; }
+  if(goldLeft<=0&&bossNeed<=0){ exitOpen=true; msgLine='粗利 回収 完了 — 屋上へ 脱出せよ'; }
 }
 function mkActor(c,r,kind){
   return { c:c, r:r, tc:c, tr:r, p:0, moving:false, mode:'', kind:kind,
            face:1, anim:0, trap:0, dead:0, digLock:0, climbHold:0, grace:0, hasGold:-1,
-           still:0, scatter:0, noImp:0, bestD:9999,
-           whim:TUNE.WHIM_MIN+Math.random()*TUNE.WHIM_RND };
+           still:0, scatter:0, noImp:0, bestD:9999 };
 }
 function actorX(a){ return (a.c+(a.tc-a.c)*a.p); }
 function actorY(a){ return (a.r+(a.tr-a.r)*a.p); }
@@ -396,7 +398,7 @@ function decide(a,wx,wy){
   if(wy>0 && !(a.kind!=='me'&&cur===HOLE) && passable(tileAt(a.c,a.r+1))){ startMove(a,a.c,a.r+1,'climb'); return; }
   if(wx!==0 && passable(tileAt(a.c+wx,a.r))){ a.face=wx; startMove(a,a.c+wx,a.r,''); return; }
 }
-function actorUpdate(a,wx,wy){
+function actorUpdate(a,wx,wy,think){
   if(a.moving){
     a.p+=stepSpeed(a);
     if(a.p<1) return;
@@ -404,6 +406,8 @@ function actorUpdate(a,wx,wy){
     var wasFall=(a.mode==='fall'); a.mode='';
     onArrive(a,wasFall);
     if(a.dead) return;
+    // 到着した"そのマス"で 考え直す（1マス古い判断で はしごを通り過ぎないように）
+    if(think){ var mv=think(a); wx=mv.wx; wy=mv.wy; }
   }
   decide(a,wx,wy);
 }
@@ -421,7 +425,7 @@ function onArrive(a,wasFall){
     if(gi>=0){
       gold[gi].got=true; goldLeft--; score+=100; sfxGold();
       floaters.push({txt:'粗利 +100',x:FX+a.c*T+T/2,y:FY+a.r*T,tt:40,col:'#ffd23f',big:false});
-      if(goldLeft<=0) openExit();
+      checkExit();
     }
     if(wasFall) sfxLand();
   } else {
@@ -444,6 +448,20 @@ function dropGold(a){
   g.c=a.c; g.r=rr; g.carried=false;
   a.hasGold=-1; sfxDrop();
   floaters.push({txt:'粗利 を 吐き出した',x:FX+g.c*T+T/2,y:FY+g.r*T-6,tt:70,col:'#ffd23f',big:false});
+}
+function checkExit(){
+  if(exitOpen) return;
+  if(goldLeft>0){
+    var carried=0,i;
+    for(i=0;i<gold.length;i++) if(!gold[i].got&&gold[i].carried) carried++;
+    if(carried>0&&carried===goldLeft) msgLine='粗利は 敵の手の中! 穴に 落として 吐かせろ';
+    return;
+  }
+  if(bossNeed>0&&bossTraps<bossNeed){
+    msgLine='ROIC経営モンスターを あと '+(bossNeed-bossTraps)+'回 穴に落とせ!';
+    return;
+  }
+  openExit();
 }
 function openExit(){
   exitOpen=true; sfxClear();
@@ -546,8 +564,7 @@ function enemyThink(e){
   function add(dc,dr,wx,wy){
     var c=e.c+dc, r=e.r+dr;
     opts.push({wx:wx,wy:wy,d:distAt(c,r),occ:enemyOccupied(c,r,e),
-               exit:(tileAt(c,r)===EXIT),                       // 脱出はしごには 乗らない
-               near:(Math.max(Math.abs(c-player.c),Math.abs(r-player.r))<=TUNE.KEEP_AWAY)});
+               exit:(tileAt(c,r)===EXIT)});                     // 脱出はしごには 乗らない
   }
   if(cur!==HOLE && passable(tileAt(e.c,e.r+1))) add(0,1,0,1);
   if(climbT(cur)&&climbT(tileAt(e.c,e.r-1))) add(0,-1,0,-1);
@@ -562,7 +579,7 @@ function enemyThink(e){
   for(i=0;i<opts.length;i++){
     o=opts[i];
     if(o.d<0||o.occ||o.exit) continue;               // 先客のマス・脱出はしごへは 入らない
-    if(away&&o.near) continue;                       // 散り中は プレイヤーの周りに 入らない＝道を空ける
+    // 散り中は「遠ざかる」方を高評価するだけ。禁止はしない＝絶対に 固まって 動かなくならない
     sc=(away?-o.d:o.d)+Math.random()*TUNE.ROUTE_JITTER;
     if(!best||sc<bestScore){ best=o; bestScore=sc; }
   }
@@ -570,7 +587,7 @@ function enemyThink(e){
   // 行き場が無い時：とにかく空いている方へ逃げる（はしごの上には 居座らない）
   if(away||e.still>TUNE.STILL_MAX||climbT(cur)){
     var free=[];
-    for(i=0;i<opts.length;i++) if(!opts[i].occ&&!opts[i].exit&&!(away&&opts[i].near)) free.push(opts[i]);
+    for(i=0;i<opts.length;i++) if(!opts[i].occ&&!opts[i].exit) free.push(opts[i]);
     if(free.length) return free[(Math.random()*free.length)|0];
   }
   return {wx:0,wy:0,d:0};                            // 動かない（＝人垣を作らない）
@@ -609,6 +626,10 @@ function updatePlay(){
 
   // --- 敵 ---
   if(aiTick<=0){ computeDist(); aiTick=TUNE.AI_TICK; } else aiTick--;
+  if(player.c!==lastPC||player.r!==lastPR){        // プレイヤーが動いたら 封鎖判定は 仕切り直し
+    lastPC=player.c; lastPR=player.r;
+    for(var q=0;q<enemies.length;q++){ enemies[q].bestD=9999; enemies[q].noImp=0; }
+  }
   for(var i=0;i<enemies.length;i++){
     var e=enemies[i];
     if(e.dead>0){
@@ -622,28 +643,29 @@ function updatePlay(){
         sfxTrap();
         floaters.push({txt:'ハマった! 頭の上を 渡れる',x:FX+e.c*T+T/2,y:FY+e.r*T-6,tt:80,col:'#9fe8ff',big:false});
         dropGold(e);
+        if(e.kind==='gonge'&&bossNeed>0){
+          bossTraps++; score+=300;
+          floaters.push({txt:'ROIC経営モンスターを 標準化! '+bossTraps+'/'+bossNeed,x:W/2,y:FY+50,tt:120,col:'#b6ff6e',big:true});
+          checkExit();
+        }
       }
-      if(e.trap>=TUNE.ENEMY_ESCAPE && passable(tileAt(e.c,e.r-1))){ startMove(e,e.c,e.r-1,'climb'); e.trap=0; }
+      var esc=(e.kind==='gonge')?TUNE.GONGE_ESCAPE:TUNE.ENEMY_ESCAPE;
+      if(e.trap>=esc && passable(tileAt(e.c,e.r-1))){ startMove(e,e.c,e.r-1,'climb'); e.trap=0; }
       continue;
     }
     if(!e.moving) e.trap=0;
-    // 待ち伏せ検知：一定時間 詰め寄れていない＝はしご前で たむろしている とみなす
+    // 封鎖検知：プレイヤーが同じ場所に居るのに 詰め寄れない＝はしご前で たむろ
     var dNow=distAt(e.c,e.r);
     if(dNow>=0 && dNow<e.bestD){ e.bestD=dNow; e.noImp=0; } else e.noImp++;
-    // 気まぐれ／張り込み解除：追跡をやめて 道を空ける
     if(e.scatter>0) e.scatter--;
-    else {
-      e.whim--;
-      if(e.whim<=0 || e.still>TUNE.STILL_MAX || e.noImp>TUNE.NOIMP_MAX){
-        e.scatter=TUNE.SCATTER;
-        e.whim=TUNE.WHIM_MIN+Math.random()*TUNE.WHIM_RND;
-        e.still=0; e.noImp=0; e.bestD=9999;
-      }
+    else if(e.still>TUNE.STILL_MAX ||
+            (e.noImp>TUNE.NOIMP_MAX && dNow>=0 && dNow<=TUNE.BLOCK_RANGE)){
+      e.scatter=TUNE.SCATTER; e.still=0; e.noImp=0; e.bestD=9999;
     }
     if(e.scatter===1) e.bestD=9999;     // 追跡再開時に 仕切り直し
     var wasC=e.c, wasR=e.r;
     var mv=enemyThink(e);
-    actorUpdate(e,mv.wx,mv.wy);
+    actorUpdate(e,mv.wx,mv.wy,enemyThink);
     if(!e.moving && e.c===wasC && e.r===wasR) e.still++; else e.still=0;
     e.anim++;
   }
@@ -991,6 +1013,10 @@ function drawHUD(){
   cx.fillText('粗利 '+(goldTotal-goldLeft)+'/'+goldTotal,160,24);
   for(var i=0;i<lives;i++){ var lx=10+i*20, ly=32;
     cx.fillStyle='#ffd23f'; cx.fillRect(lx,ly,12,6); cx.fillStyle='#4a86c8'; cx.fillRect(lx+1,ly+6,10,4); }
+  if(bossNeed>0){
+    cx.fillStyle='#b6ff6e'; cx.font='bold 15px sans-serif';
+    cx.fillText('標準化 '+bossTraps+'/'+bossNeed,300,24);
+  }
   cx.textAlign='right'; cx.fillStyle='#9fb0d0'; cx.font='14px sans-serif';
   cx.fillText('STAGE '+stageNo+'/'+STAGES.length,W-46,22);
   cx.fillStyle='#7f8fa8'; cx.font='12px sans-serif';
@@ -1088,8 +1114,10 @@ function drawTitle(){
   cx.fillText('・⛏で 足元の 床に カイゼン穴を 掘る',W/2,452);
   cx.fillText('・穴は 下の階への 近道。落ちて 進める',W/2,476);
   cx.fillText('・追手を 穴に 落とし、頭の上を 走って 渡る',W/2,500);
-  cx.fillText('・敵は 粗利を 持ち逃げする。穴で 吐かせろ',W/2,524);
-  cx.fillText('・鋼材（灰色）は 掘れない／踏み抜ける 床もある',W/2,548);
+  cx.fillStyle='#ffb14d';
+  cx.fillText('・敵は 粗利を 必ず 持ち逃げする＝穴で 吐かせろ',W/2,524);
+  cx.fillStyle='#8fa4c8';
+  cx.fillText('・屋上は ボス戦：権化を 3回 穴に 落とせ',W/2,548);
   cx.fillStyle='#b6ff6e';
   cx.fillText('・やられても 拾った 粗利は そのまま キープ',W/2,572);
   cx.fillStyle='#8fa4c8';
@@ -1164,14 +1192,14 @@ if(typeof module!=='undefined'){
     startGame:startGame, loadStage:loadStage, advanceDialog:advanceDialog,
     tryDig:tryDig, update:update, render:render,
     tileAt:tileAt, climbT:climbT, passable:passable, solidT:solidT,
-    nodeSupported:nodeSupported, trappedEnemyAt:trappedEnemyAt,
+    nodeSupported:nodeSupported, distAt:distAt, trappedEnemyAt:trappedEnemyAt,
     setPad:function(o){ pad={left:!!o.left,right:!!o.right,up:!!o.up,down:!!o.down}; },
     get mode(){return mode;}, set mode(v){mode=v;},
     get player(){return player;}, get enemies(){return enemies;},
     get gold(){return gold;}, get goldLeft(){return goldLeft;},
     get exitOpen(){return exitOpen;}, get stageNo(){return stageNo;},
     get lives(){return lives;}, get score(){return score;}, get dlg(){return dlg;},
-    get holes(){return holes;}
+    get holes(){return holes;}, get bossTraps(){return bossTraps;}, get bossNeed(){return bossNeed;}
   };
 }
 </script>
