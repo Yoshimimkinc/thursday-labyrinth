@@ -85,7 +85,7 @@ canvas{display:block;width:100%;height:auto;image-rendering:pixelated;image-rend
    OHMAMA SOFT Adventure Series / 木曜日の迷宮 Vol.6 外伝
    ドラゴンクエストの戦闘画面オマージュ。単一HTML・バニラJS・依存なし。
    -------------------------------------------------------------------------
-   芯：4連戦の見積もり合戦。受け入れ → 加工 → 検査 → 納品。
+   芯：4連戦の見積もり合戦。受け入れ → 加工 → 検査 → 納品。＋番外の第5ラウンド（お誕生日）。
        コマンドは みつもり（単価を選ぶ）／だんまり／じゅもん／にげる の4つ。
        安い単価を出せば相手の「なっとく」は早く削れるが、あらり（HP）が消える。
        じゅもん＝値段を下げずに納得させる手。これが本作の主張。
@@ -94,61 +94,72 @@ canvas{display:block;width:100%;height:auto;image-rendering:pixelated;image-rend
    ========================================================================= */
 
 var TUNE = {
-  ARA0: 120,    // あらり（HP）
+  ARA0: 124,    // あらり（HP）
   MP0:  30,     // こんきょ（MP）
-  NIGE: 3,      // 持ち帰り（にげる）の上限。超えると失注
+  NIGE: 4,      // 持ち帰り（にげる）の上限。超えると失注
   CRIT: 0.12,
-  ALLY: 0.22    // 仲間が 勝手に 助太刀する確率
+  ALLY: 0.30,   // 仲間が 勝手に 助太刀する確率
+  SPONGE: 0.10, // スポンジマンの妨害が 出る確率
+  TALK:  0.50,  // だんまりで 相手が 先にしゃべる確率
+  WEAK:  2.0,   // 弱点（効果ばつぐん）の倍率
+  HELP:  0.16,  // 応援ひとりあたり 相手の攻撃が 強くなる割合
+  RANK:  [100, 67, 35]   // 天下布武 / 惣無事令 / 一国一城 の あらりしきい値
 };
 
 /* ---------- じゅもん ---------- */
 var SPELLS = [
-  {nm:'フィフティフィフティ', mp:6, attr:'kaizen', pw:[13,17], ara:4,
+  {nm:'フィフティフィフティ', mp:6, attr:'kaizen', pw:[18,23], ara:4,
    t:'「改善して浮いた分、半分こに しませんか」',
    e:'相手も得をする。だから通る。'},
-  {nm:'スライドセイ', mp:6, attr:'genka', pw:[14,18], ara:0,
+  {nm:'スライドセイ', mp:6, attr:'genka', pw:[19,24], ara:0,
    t:'「材料の市況に、単価を 連動させてください」',
    e:'上がったら上げる。下がったら下げる。それだけの話。'},
-  {nm:'ナイゾウカ', mp:7, attr:'kosu', pw:[15,19], ara:2,
+  {nm:'ナイゾウカ', mp:7, attr:'kosu', pw:[20,26], ara:2,
    t:'「外に出してた工程、うちで やります」',
    e:'外注のマージンが 消える。下げ代は そこから出す。'},
-  {nm:'ブイイーテイアン', mp:7, attr:'hinshitsu', pw:[15,19], ara:3,
+  {nm:'ブイイーテイアン', mp:7, attr:'hinshitsu', pw:[20,26], ara:3,
    t:'「この形状、変えていいなら 検査項目が 2つ 減ります」',
    e:'安くする方法を、こちらから 出す。'},
-  {nm:'マトメガイ', mp:7, attr:'nouki', pw:[15,20], ara:2,
+  {nm:'マトメガイ', mp:7, attr:'nouki', pw:[20,27], ara:2,
    t:'「年間まとめて頂けるなら、この単価で 押さえます」',
    e:'まとめてくれれば、段取りが 減る。'},
-  {nm:'ゲンカバレー', mp:4, attr:'open', pw:[8,12], ara:0, mpback:7,
+  {nm:'ゲンカバレー', mp:4, attr:'open', pw:[11,16], ara:0, mpback:7,
    t:'「うちの原価、ぜんぶ お見せします」',
    e:'手の内は見えるが、話が 早くなる。こんきょが 戻る。'},
-  {nm:'キラキラセッタイ', mp:7, attr:'settai', pw:[14,18], ara:-6, soft:2,
+  {nm:'キラキラセッタイ', mp:7, attr:'settai', pw:[19,24], ara:-6, soft:2,
    t:'「今夜、いっぱい どうですか。いい店 知ってるだよ」',
    e:'翌朝、相手の当たりが やわらかい。'},
-  {nm:'ブランセッタイ', mp:10, attr:'settai', pw:[20,26], ara:-12, soft:3,
+  {nm:'ブランセッタイ', mp:10, attr:'settai', pw:[27,35], ara:-12, soft:3,
    t:'「ちょっと いい店、押さえてありますで」'
     ,e:'二軒目のドアが 開いた時点で、話は 半分 決まっている。'},
-  {nm:'VIPカンランシャ', mp:14, attr:'settai', pw:[30,38], ara:-22, soft:4, once:true,
+  {nm:'VIPカンランシャ', mp:14, attr:'settai', pw:[40,51], ara:-22, soft:4, once:true,
    t:'「観覧車のVIPルーム、貸し切ってあります」',
    e:'夜景。シャンパン。ゴンドラは 逃げ場が無い。……接待の 最終兵器。'},
-  {nm:'ルーラ', mp:12, attr:'ruler', pw:[22,28], ara:0, once:true,
+  {nm:'ルーラ', mp:12, attr:'ruler', pw:[30,38], ara:0, once:true,
    t:'「本社の人事に、いい話を 通しておきました」',
    e:'担当が 飛ぶ。応援に来ていた上役ごと、遠くへ 飛ぶ。'},
-  {nm:'カイガイテンカイ', mp:13, attr:'kaigai', pw:[24,30], ara:-10, once:true,
+  {nm:'カイガイテンカイ', mp:13, attr:'kaigai', pw:[32,40], ara:-10, once:true,
    t:'「では うちも、向こうに 工場 作りますで」',
    e:'中国シフトと 言われる前に、こちらが 出る。以後その脅しは 効かない。'}
 ];
 
 /* ---------- 敵の技 ---------- */
 var SKILLS = {
-  negiri: {nm:'ねぎり',          line:'「そこを なんとか、もう一声」',                     dmg:[8,14]},
-  china:  {nm:'中国シフト',      line:'「中国なら 半値で できるって 聞いたよ」',           dmg:[16,23]},
-  tenchu: {nm:'てんちゅう攻撃',  line:'「……この品番、他社さんに 回そうかな」',            dmg:[18,26], mp:2},
+  negiri: {nm:'ねぎり',          line:'「そこを なんとか、もう一声」',                     dmg:[8,13]},
+  china:  {nm:'中国シフト',      line:'「中国なら 半値で できるって 聞いたよ」',           dmg:[15,21]},
+  tenchu: {nm:'てんちゅう攻撃',  line:'「……この品番、他社さんに 回そうかな」',            dmg:[17,25], mp:2},
   jikan:  {nm:'じかん測定',      line:'「来週、ストップウォッチ 持って 現場 見に行くから」',dmg:[4,7],   mp:6},
-  hinten: {nm:'品質重点工場',    line:'「御社を 品質重点工場に 指定します（表彰状つき）」', dmg:[3,6],   heal:14},
-  bucho:  {nm:'ぶちょうのほうもん',line:'「うちの部長が『どうしても』と 申しておりまして」', dmg:[15,21]},
-  kaden:  {nm:'家電デストロイヤー',line:'「量販店の 店頭価格が これ。……分かるよね」',      dmg:[24,32]},
+  hinten: {nm:'品質重点工場',    line:'「御社を 品質重点工場に 指定します（表彰状つき）」', dmg:[3,6],   heal:12},
+  bucho:  {nm:'ぶちょうのほうもん',line:'「うちの部長が『どうしても』と 申しておりまして」', dmg:[15,20]},
+  kaden:  {nm:'家電デストロイヤー',line:'「量販店の 店頭価格が これ。……分かるよね」',      dmg:[23,31]},
   odori:  {nm:'ＴＶ台の上で ふしぎな踊り', line:'（バイヤーは 展示品のTV台に のぼり、踊りだした）', dmg:[0,2], mp:9},
-  yobu:   {nm:'なかまを よんだ！',line:'「ちょっと 上の者を 呼びますね」',                  dmg:[0,0], call:true}
+  yobu:   {nm:'なかまを よんだ！',line:'「ちょっと 上の者を 呼びますね」',                  dmg:[0,0], call:true},
+
+  /* --- 番外・お誕生日ラウンド（祝う戦い。ダメージは ほぼ無い） --- */
+  mekiki: {nm:'野菜ソムリエの 目利き', line:'「……この花、どこで 買っただ？」',            dmg:[0,0], heal:7},
+  teryori:{nm:'手料理の ふるまい',     line:'「はい、これ つまんで。作りすぎちゃったで」',  dmg:[0,0], araback:8},
+  pony:   {nm:'ポニーテールを 結い直す',line:'（しゅるり、と ほどいて、また 結ぶ。……見とれた）', dmg:[0,0], mp:2},
+  tanjo:  {nm:'きょう、誕生日なんだよね',line:'「……って 自分で 言うのも なんだけどね」',  dmg:[0,0], boost:true}
 };
 
 /* ---------- 4連戦 ---------- */
@@ -156,38 +167,68 @@ var PALETTE = {
   calc:  ['#c8c8d0','#8a8a96','#5a5a66','#7fd6a2','#ff5a4a'],
   watch: ['#d8d8e0','#f0f0f4','#b0b0bc','#c83a3a','#2a2a32'],
   loupe: ['#6a80c8','#a8c0f0','#2a3a6a','#8a6a4a','#ffffff'],
-  dragon:['#c83a3a','#e05a4a','#a02a2a','#f0ece0','#ffe14a']
+  dragon:['#c83a3a','#e05a4a','#a02a2a','#f0ece0','#ffe14a'],
+  takahashi:['#ffd24a','#ff8ab0','#7fd6a2','#8ad0ff','#ffffff']
 };
 
 var ENEMIES = [
-  { nm:'ネアゲミトメン', short:'受け入れ', sp:'calc', hp:52, weak:'genka',
-    prices:[[22,4,3],[18,14,0],[15,24,-8],[11,42,-20]],   // [単価, なっとくダメージ, あらり増減]
+  { nm:'ネアゲミトメン', short:'受け入れ', sp:'calc', hp:46, weak:'genka',
+    prices:[[22,6,3],[18,15,0],[15,25,-8],[11,42,-20]],   // [単価, なっとくダメージ, あらり増減]
     say:'「材料費？ 去年と同じでしょ。うち、値上げ 通せないんだよね」',
     guchi:'ミヤカワ「材料 上がっとるのに 単価は据え置き……いや、根拠 出してこんかった俺も俺だわ」',
     hit:'「……去年と、そんなに違うだ」',
     exp:12, win:'受け入れ工程の材料費、認められた！',
     skills:['negiri','negiri','china','odori'] },
-  { nm:'コウスウケズリ', short:'加工', sp:'watch', hp:74, weak:'kosu',
-    prices:[[34,5,3],[29,14,0],[25,24,-9],[19,42,-22]],
+  { nm:'コウスウケズリ', short:'加工', sp:'watch', hp:64, weak:'kosu',
+    prices:[[34,6,3],[29,15,0],[25,25,-9],[19,42,-22]],
     say:'「加工賃、高くない？ もっと 手早く できるでしょ」',
     guchi:'岩田「早うできるなら やっとるわ。……いや、段取り 見直してない俺も俺だに」',
     hit:'「その治具、うちの他の品番にも 使えるだか？」',
     exp:16, win:'加工工程のチャージ、認められた！',
     skills:['negiri','jikan','bucho','odori'] },
-  { nm:'ケンサハタダ', short:'検査', sp:'loupe', hp:86, weak:'hinshitsu',
-    prices:[[12,5,3],[9,14,0],[7,24,-8],[5,42,-19]],
+  { nm:'ケンサハタダ', short:'検査', sp:'loupe', hp:74, weak:'hinshitsu',
+    prices:[[12,6,3],[9,15,0],[7,25,-8],[5,42,-19]],
     say:'「検査は サービスで やってよ。品質は 当たり前でしょ」',
     guchi:'高林「当たり前を 続けるのに 人が要るだよ。……値段に載せてこなかったのは こっちだけどね」',
     hit:'「……その不良、うちも 止まったな。あの時か」',
     exp:20, win:'検査工数、見積に載った！',
     skills:['negiri','hinten','bucho','yobu'] },
-  { nm:'ノウキドラゴン', short:'納品', sp:'dragon', hp:112, weak:'nouki',
-    prices:[[9,5,3],[7,13,0],[6,23,-9],[4,40,-23]],
+  { nm:'ノウキドラゴン', short:'納品', sp:'dragon', hp:96, weak:'nouki',
+    prices:[[9,6,3],[7,15,0],[6,25,-9],[4,42,-23]],
     say:'「で、これ ぜんぶ 明日 持ってきてね。もちろん 送料込みで」',
     guchi:'佐藤「明日て。……いや、いつも 受けてまう うちらの話でもあるだよね」',
     hit:'「……二回に分ければ、こっちの置き場も 助かるか」',
     exp:30, win:'納期、二回に分けて 合意！',
-    skills:['negiri','tenchu','china','kaden','yobu'] }
+    skills:['negiri','tenchu','china','kaden','yobu'] },
+
+  /* ---- 番外・第5ラウンド：お誕生日（倒す＝喜ばせる） ---- */
+  { nm:'タカハシくん', short:'お誕生日', sp:'takahashi', hp:60, weak:'settai',
+    cele:true, secret:true, gauge:'よろこび', cmd:'プレゼント', expnm:'えがお',
+    head:'── 番外　第5ラウンド：お誕生日 ──',
+    weakNote:'よろこばせかた：ごちそう・観覧車（接待のじゅもんが 誕生日ディナーに 化ける）',
+    presents:[
+      {nm:'花たば',     dmg:10, ara:-2,
+       t:'「まずは これ。……名前は 分からんけど、きれいだったで」',
+       r:'タカハシ「わあ。……この色、好きだに」'},
+      {nm:'甘いもの',   dmg:16, ara:-4,
+       t:'「ケーキと チョコ。どっちか 選べんかったで、両方 買ってきた」',
+       r:'タカハシ「ふふ、そういうとこだら」'},
+      {nm:'野菜の種',   dmg:20, ara:-5,
+       t:'「来年 まいてみて。ちょっと めずらしい やつだに」',
+       r:'タカハシ「……これ、いい種だ。分かっとるじゃん」'},
+      {nm:'畑の権利書', dmg:28, ara:-8,
+       t:'「畑。うん、畑ごと。好きに 作っとくれ」',
+       r:'タカハシ「畑！？　……もらっちゃって いいだ？」'},
+      {nm:'お金',       dmg:34, ara:-11, wide:true,
+       t:'「いちばん よろこぶやつ、知っとるで。……夢が ないだら？」',
+       r:'タカハシ「いや、うれしい。すごく うれしいだよ」'}
+    ],
+    say:'「え、なに これ。……きょう、みんな 集まっとるだ？」',
+    guchi:'高林「きょうは こっちが 渡す番だに」　佐藤「段取りだけは 得意だでね」',
+    hit:'「そんな いい店、ええだ？　……ありがとね」',
+    guardline:'「……なに 黙っとるだ。顔、赤いに」',
+    exp:24, win:'タカハシくん は よろこんだ！　── お誕生日、おめでとう！',
+    skills:['mekiki','teryori','pony','tanjo'] }
 ];
 
 var ATTR_NM = {genka:'材料の実績・市況', kosu:'工数そのものを減らす手',
@@ -204,6 +245,15 @@ var ALLIES = [
   {who:'佐藤',   nm:'しずかな 詰め',               pw:[9,14],
    t:'（過去トラの資料を、そっと 差し出しただけ）'}
 ];
+/* お誕生日ラウンド専用の 助太刀（祝う側） */
+var ALLIES_CELE = [
+  {who:'岩田', nm:'クラッカーを ならした！',        pw:[8,12],
+   t:'（パァン。紙テープが 天井まで 飛んだ）'},
+  {who:'高林', nm:'ハッピーバースデーを 歌った！',  pw:[8,12],
+   t:'（音程は ともかく、気持ちは 入っとる）'},
+  {who:'佐藤', nm:'そっと 花を 一本 足した',        pw:[7,11],
+   t:'（何も 言わずに、いちばん いい席を ゆずる）'}
+];
 
 /* =========================================================================
    状態
@@ -213,7 +263,7 @@ function newGame(){
   return {ei:0, ehp:ENEMIES[0].hp, ara:TUNE.ARA0, mp:TUNE.MP0,
           q:[], mode:'msg', sub:null, over:false, guard:false, soft:0,
           nige:0, sponge:0, crit:0, settai:0, yasu:0, used:{}, gused:{}, tanka:[],
-          help:0, kaigai:false, ruler:0, ally:0,
+          help:0, kaigai:false, ruler:0, ally:0, boost:0, gift:'', araRank:null,
           exp:0, lv:1, mpmax:TUNE.MP0, showEnemy:false};
 }
 function el(id){ return document.getElementById(id); }
@@ -242,10 +292,13 @@ function render(){
   var E=ENEMIES[Math.min(G.ei,ENEMIES.length-1)];
   var s=el('stat');
   if(s){
+    /* お誕生日ラウンドだけ ゲージ名と 向きが変わる（よろこびは 積み上がる） */
+    var gnm=E.gauge||'なっとく';
+    var gv=E.cele?Math.max(0,E.hp-Math.max(0,G.ehp)):Math.max(0,G.ehp);
     s.innerHTML='<div>ミヤカワ</div>'
      +'<div class="'+(G.ara<=35?'low':'')+'">あらり<span class="v">'+Math.max(0,G.ara)+'</span></div>'
      +'<div>こんきょ<span class="v">'+Math.max(0,G.mp)+'</span></div>'
-     +'<div style="color:#9a9a9a">なっとく<span class="v">'+Math.max(0,G.ehp)+'</span></div>'
+     +'<div style="color:'+(E.cele?'#ffd24a':'#9a9a9a')+'">'+gnm+'<span class="v">'+gv+'</span></div>'
      +(G.help?'<div style="color:#ff8a7a">応援<span class="v">'+(G.help===1?'カチョウ':'カチョウ+ブチョウ')+'</span></div>':'');
   }
   var ch=el('chain');
@@ -253,11 +306,12 @@ function render(){
     var h='<div style="color:#9a9a9a">みつもり</div>';
     for(var i=0;i<ENEMIES.length;i++){
       var cls=(i<G.ei)?'dn':((i===G.ei&&!G.over)?'on':'');
-      h+='<div class="'+cls+'">'+(i<G.ei?'✓':'・')+ENEMIES[i].short+'</div>';
+      var snm=(ENEMIES[i].secret && i>G.ei)?'？？？':ENEMIES[i].short;
+      h+='<div class="'+cls+'">'+(i<G.ei?'✓':'・')+snm+'</div>';
     }
     ch.innerHTML=h;
   }
-  if(FX.mode!=='die') CUR=(G.over||!G.showEnemy)?null:E;
+  if(FX.mode!=='die' && FX.mode!=='cele') CUR=(G.over||!G.showEnemy)?null:E;
   drawScene();
   renderCmd();
 }
@@ -265,10 +319,18 @@ function renderCmd(){
   var c=el('cmd'); if(!c) return;
   var h='',i,E=ENEMIES[Math.min(G.ei,ENEMIES.length-1)];
   if(G.mode==='sub' && G.sub==='price'){
-    var lab=['強気','適正','ゆずる','安売り'];
-    for(i=0;i<E.prices.length;i++){
-      h+='<div class="it" data-k="p" data-i="'+i+'">¥'+E.prices[i][0]
-        +'<span class="c">'+lab[i]+'</span></div>';
+    if(E.presents){
+      for(i=0;i<E.presents.length;i++){
+        var Pz=E.presents[i];
+        h+='<div class="it'+(Pz.wide?' wide':'')+'" data-k="p" data-i="'+i+'">'+Pz.nm
+          +'<span class="c">'+Pz.ara+'</span></div>';
+      }
+    }else{
+      var lab=['強気','適正','ゆずる','安売り'];
+      for(i=0;i<E.prices.length;i++){
+        h+='<div class="it" data-k="p" data-i="'+i+'">¥'+E.prices[i][0]
+          +'<span class="c">'+lab[i]+'</span></div>';
+      }
     }
     h+='<div class="it wide" data-k="back">もどる</div>';
   }else if(G.mode==='sub' && G.sub==='spell'){
@@ -279,7 +341,7 @@ function renderCmd(){
     }
     h+='<div class="it" data-k="back">もどる</div>';
   }else{
-    h+='<div class="it" data-k="price">みつもり</div>';
+    h+='<div class="it" data-k="price">'+(E.cmd||'みつもり')+'</div>';
     h+='<div class="it" data-k="guard">だんまり</div>';
     h+='<div class="it" data-k="spell">じゅもん</div>';
     h+='<div class="it" data-k="nige">にげる<span class="c">'+(TUNE.NIGE-G.nige)+'</span></div>';
@@ -309,12 +371,12 @@ function renderCmd(){
 function startBattle(){
   var E=ENEMIES[G.ei];
   G.ehp=E.hp; G.guard=false; G.soft=0; G.used={}; G.help=0;
-  G.showEnemy=true; CUR=E; FX.mode=''; fxIn();
-  say([['sys','── 見積検討会　第'+(G.ei+1)+'ラウンド：'+E.short+' ──'],
-       ['bad',E.nm+' が あらわれた！'],
+  G.showEnemy=true; CUR=E; FX.mode=''; G.boost=0; fxIn();
+  say([['sys',E.head||('── 見積検討会　第'+(G.ei+1)+'ラウンド：'+E.short+' ──')],
+       [E.cele?'good':'bad',E.nm+' が あらわれた！'],
        ['',E.say],
        ['sys',E.guchi],
-       ['sys','（弱点：'+ATTR_NM[E.weak]+'）']]);
+       ['sys','（'+(E.weakNote||('弱点：'+ATTR_NM[E.weak]))+'）']]);
   G.mode='cmd'; G.sub=null;
   render(); flush();
 }
@@ -322,11 +384,20 @@ function startBattle(){
 function doAction(kind, idx){
   if(G.over || G.q.length) return;
   if(G.mode!=='cmd' && G.mode!=='sub') return;
-  var E=ENEMIES[G.ei], dmg=0, weak=false;
+  var E=ENEMIES[G.ei], dmg=0, weak=false, g=E.gauge||'なっとく';
   G.guard=false;
   G.mode='cmd'; G.sub=null;
 
-  if(kind==='price'){
+  if(kind==='price' && E.presents){
+    var Pz=E.presents[idx];
+    G.gift=Pz.nm;
+    dmg=Pz.dmg; G.ara+=Pz.ara;
+    say([['yen','ミヤカワは 「'+Pz.nm+'」を さしだした！'],['',Pz.t],['good',Pz.r]]);
+    if(G.boost){ dmg=Math.round(dmg*1.4); G.boost=0;
+      say([['crit','── 誕生日 効果！　よけいに 効いた！']]); }
+    say([['sys','（あらりが '+(-Pz.ara)+'。……まあ、こういう日は 使うもんだら）']]);
+
+  }else if(kind==='price'){
     var P=E.prices[idx];
     G.tanka[G.ei]=P[0];
     dmg=P[1]; G.ara+=P[2];
@@ -365,13 +436,19 @@ function doAction(kind, idx){
     say([['','ミヤカワは だんまりを 決めこんだ。'],
          ['sys','沈黙が 会議室に 落ちる。値段の話は、先に しゃべった方が 損だ。']]);
     G.mp=Math.min(G.mpmax,G.mp+3);
-    if(Math.random()<0.34){
+    if(Math.random()<TUNE.TALK){
       var d2=rnd(10,16); G.ehp-=d2;
-      say([['good',E.nm+'「……で、いくらなら いけるだ」'],
-           ['dmg','── 相手が 先に しゃべった！　なっとくに '+d2+' の ダメージ！']]);
+      say([['good',E.nm+(E.guardline||'「……で、いくらなら いけるだ」')],
+           ['dmg','── 相手が 先に しゃべった！　'+g+'が '+d2+' 動いた！']]);
     }
 
   }else if(kind==='nige'){
+    if(E.cele){
+      say([['','ミヤカワ「……いや、なんでもない」'],
+           ['sys','タカハシ「なんだら それ」　── こんきょが 5 もどった。']]);
+      G.mp=Math.min(G.mpmax,G.mp+5);
+      G.mode='cmd'; flush(); render(); return;
+    }
     G.nige++;
     say([['','ミヤカワ「……いったん 持ち帰らせてください」']]);
     if(G.nige>=TUNE.NIGE){
@@ -379,28 +456,33 @@ function doAction(kind, idx){
       G.mode='msg'; G.q.push(['__lost','']); flush(); render(); return;
     }
     G.ehp=Math.min(E.hp,G.ehp+10); G.mp=Math.min(G.mpmax,G.mp+9);
-    say([['sys','持ち帰って 根拠を 作り直した。こんきょ +9、相手の なっとく +10。']]);
+    say([['sys','持ち帰って 根拠を 作り直した。こんきょ +9、相手の '+g+' +10。']]);
     G.mode='cmd'; flush(); render(); return;
   }
 
   if(dmg>0){
-    if(weak) dmg=Math.round(dmg*2.3);
+    if(weak) dmg=Math.round(dmg*TUNE.WEAK);
     var crit=(Math.random()<TUNE.CRIT);
     if(crit){ dmg=Math.round(dmg*1.6); G.crit++; }
     G.ehp-=dmg;
     fxHit(weak,crit);
-    if(crit) say([['crit','根拠が ぐさりと 刺さった！']]);
+    if(crit) say([['crit',E.cele?'まっすぐ 届いた！':'根拠が ぐさりと 刺さった！']]);
     if(weak) say([['dmg','── 効果は ばつぐんだ！']]);
-    say([['dmg',E.nm+' の なっとくに '+dmg+' の ダメージ！']]);
+    say([['dmg',E.cele ? (E.nm+' の '+g+'が '+dmg+' あがった！')
+                       : (E.nm+' の '+g+' に '+dmg+' の ダメージ！')]]);
     if(weak && G.ehp>0) say([['',E.hit]]);
   }
 
   if(G.ehp>0 && dmg>0 && Math.random()<TUNE.ALLY){
-    var A=ALLIES[Math.floor(Math.random()*ALLIES.length)];
+    var AL=E.cele?ALLIES_CELE:ALLIES;
+    var A=AL[Math.floor(Math.random()*AL.length)];
     var ad=rnd(A.pw[0],A.pw[1]); G.ehp-=ad; G.ally++;
     say([['good',A.who+' の 『'+A.nm+'』'],['sys',A.t],
-         ['dmg',E.nm+' に '+ad+' の ダメージ！']]);
+         ['dmg',E.cele ? (E.nm+' の '+g+'が '+ad+' あがった！')
+                       : (E.nm+' に '+ad+' の ダメージ！')]]);
   }
+
+  if(E.cele && G.ara<1) G.ara=1;   // 誕生日ラウンドでは 負けない
 
   if(G.ehp<=0){
     defeat(E);
@@ -412,16 +494,24 @@ function doAction(kind, idx){
 
 function defeat(E){
   G.showEnemy=false;
-  fxDie(E);
-  say([['dmg','── なっとくが 0 に なった！'],
-       ['crit','＊　'+E.nm+' は くずれおちた！　＊'],
-       ['good',E.nm+' を 説き伏せた！'],
-       ['good','── '+E.win]]);
+  var g=E.gauge||'なっとく';
+  if(E.cele){
+    fxCele(E);
+    say([['dmg','── '+g+'が あふれた！'],
+         ['crit','＊　'+g+' MAX！　＊'],
+         ['good',E.win]]);
+  }else{
+    fxDie(E);
+    say([['dmg','── '+g+'が 0 に なった！'],
+         ['crit','＊　'+E.nm+' は くずれおちた！　＊'],
+         ['good',E.nm+' を 説き伏せた！'],
+         ['good','── '+E.win]]);
+  }
   var back=Math.min(7,G.mpmax-G.mp);
   G.mp=Math.min(G.mpmax,G.mp+7);
   G.exp+=E.exp;
   say([['sys','──────────────'],
-       ['dmg','ミヤカワたちは しんよう '+E.exp+' を かくとくした！'],
+       ['dmg','ミヤカワたちは '+(E.expnm||'しんよう')+' '+E.exp+' を かくとくした！'],
        ['good','こんきょが '+back+' もどった。']]);
   var need=[0,18,42,72,999][G.lv];
   if(G.exp>=need && G.lv<4){
@@ -435,12 +525,17 @@ function defeat(E){
     if(G.lv===3) say([['sys','── 相手の眉が 動く瞬間が、見えるようになってきた。']]);
     if(G.lv===4) say([['sys','── もう、この部屋で 気圧されることは ない。']]);
   }
+  /* ランク判定は 見積が終わった時点の あらりで見る（お祝いの出費で 格を下げない） */
+  if(!E.cele) G.araRank=G.ara;
   G.ei++; G.mode='msg';
+  /* 通したのに あらりが 残っていない＝赤字受注。お祝いラウンドへは 進ませない */
+  if(!E.cele && G.ara<=0){ G.q.push(['__over','']); return; }
   G.q.push([(G.ei>=ENEMIES.length)?'__end':'__next','']);
 }
 
 function enemyTurn(E){
-  if(Math.random()<0.13){
+  var g=E.gauge||'なっとく';
+  if(!E.cele && Math.random()<TUNE.SPONGE){
     var big=(Math.random()<0.45);
     if(big){
       var m2=rnd(6,9); G.mp=Math.max(0,G.mp-m2);
@@ -461,20 +556,20 @@ function enemyTurn(E){
            ['good','「……そっちも 向こうに 工場 作ったんだったね」']]);
       G.mode='cmd'; return;
     }
-    say([['bad',E.nm+' の 『'+S.nm+'』！'],['',S.line]]);
+    say([[E.cele?'':'bad',E.nm+' の 『'+S.nm+'』！'],['',S.line]]);
     if(S.call){
       if(G.help<2){
         G.help++;
         say([['bad',(G.help===1?'カチョウ':'ブチョウ')+' が あらわれた！'],
              ['bad','── 相手の 押しが 強くなった。']]);
-        G.ehp=Math.min(E.hp,G.ehp+8);
-        say([['bad','なっとくが 8 回復！']]);
+        G.ehp=Math.min(E.hp,G.ehp+6);
+        say([['bad',g+'が 6 回復！']]);
       }else{
         say([['sys','……これ以上 呼べる人が いなかった。']]);
       }
     }else{
       var d=rnd(S.dmg[0],S.dmg[1]);
-      d=Math.round(d*(1+0.18*G.help));
+      d=Math.round(d*(1+TUNE.HELP*G.help));
       if(G.soft>0){ d=Math.round(d*0.5); G.soft--; }
       else if(G.soft<0){ d=Math.round(d*1.3); G.soft=0; }
       if(G.guard){ d=Math.round(d*0.45); }
@@ -482,9 +577,15 @@ function enemyTurn(E){
       if(S.mp){ var m=G.guard?Math.round(S.mp/2):S.mp; G.mp=Math.max(0,G.mp-m);
         say([['bad','こんきょを '+m+' うしなった！']]); }
       if(S.heal){ G.ehp=Math.min(E.hp,G.ehp+S.heal);
-        say([['bad','表彰状を 受け取ってしまった。なっとくが '+S.heal+' 回復！']]); }
+        say([['bad',E.cele ? ('── 目利きに 見抜かれた。'+g+'が '+S.heal+' さがった。')
+                           : ('表彰状を 受け取ってしまった。'+g+'が '+S.heal+' 回復！')]]); }
+      if(S.araback){ G.ara=Math.min(TUNE.ARA0,G.ara+S.araback);
+        say([['good','── うまい。……あらりが '+S.araback+' もどった。']]); }
+      if(S.boost){ G.boost=1;
+        say([['good','── つぎの プレゼントが、よけいに 効きそうだ。']]); }
     }
   }
+  if(E.cele){ if(G.ara<1) G.ara=1; G.mode='cmd'; return; }
   if(G.ara<=0){ G.mode='msg'; G.q.push(['__over','']); return; }
   if(G.ara<=30) say([['bad','── あらりが あぶない！']]);
   G.mode='cmd';
@@ -506,6 +607,8 @@ function advance(){
 function ending(kind){
   G.over=true; G.mode='end';
   var rank,mes,win=(kind==='win');
+  /* ランクは「見積が終わった時点」の あらりで決める。お祝いの出費で 格を下げない */
+  var ra=(G.araRank===null||G.araRank===undefined)?G.ara:G.araRank;
   if(kind==='aka'){
     rank='あ か じ 受 注';
     mes='見積は通った。だが 通した中身は 原価を割っている。'
@@ -514,11 +617,11 @@ function ending(kind){
     rank='失　注';
     mes='持ち帰りを 重ねすぎた。話は 他社へ流れた。'
        +'──ただ、赤字で受けるよりは まし、かもしれない。';
-  }else if(G.ara>=106){ rank='天 下 布 武';
+  }else if(ra>=TUNE.RANK[0]){ rank='天 下 布 武';
     mes='4工程ぶんの単価が、すべて 根拠つきで通った。値引きではなく、工夫で勝った見積だ。'; }
-  else if(G.ara>=76){ rank='惣 無 事 令';
+  else if(ra>=TUNE.RANK[1]){ rank='惣 無 事 令';
     mes='通った。多少 削られたが、作れば ちゃんと残る見積になっている。'; }
-  else if(G.ara>=42){ rank='一 国 一 城';
+  else if(ra>=TUNE.RANK[2]){ rank='一 国 一 城';
     mes='通りはした。ただ ここから ひとつ 手が狂えば 消える薄さだ。'; }
   else{ rank='薄 氷';
     mes='通った。……この単価で 来年も同じ話をするのかと思うと、少し 遠い目になる。'; }
@@ -527,10 +630,13 @@ function ending(kind){
   h+='<h2>'+(win?'見積、承認':(kind==='lost'?'商談、終了':'見積検討会、終了'))+'</h2>';
   h+='<div class="rank">'+rank+'</div>';
   h+='<table>';
-  h+='<tr><td>勝ち取った工程</td><td>'+G.ei+' / '+ENEMIES.length+'</td></tr>';
+  var nProc=0,qi;
+  for(qi=0;qi<ENEMIES.length;qi++) if(!ENEMIES[qi].cele) nProc++;   // 番外（お誕生日）は 工程に数えない
+  h+='<tr><td>勝ち取った工程</td><td>'+Math.min(G.ei,nProc)+' / '+nProc+'</td></tr>';
+  if(G.gift) h+='<tr><td>おくりもの</td><td>'+G.gift+'</td></tr>';
   h+='<tr><td>ミヤカワ</td><td>Lv'+G.lv+'（しんよう '+G.exp+'）</td></tr>';
   h+='<tr><td>残ったあらり</td><td>'+Math.max(0,G.ara)+' / '+TUNE.ARA0+'</td></tr>';
-  h+='<tr><td>残ったこんきょ</td><td>'+Math.max(0,G.mp)+' / '+TUNE.MP0+'</td></tr>';
+  h+='<tr><td>残ったこんきょ</td><td>'+Math.max(0,G.mp)+' / '+G.mpmax+'</td></tr>';
   h+='<tr><td>提示した単価</td><td>'+(G.tanka.filter(function(x){return x;}).map(function(x){return '¥'+x;}).join(' / ')||'─')+'</td></tr>';
   h+='<tr><td>根拠が刺さった回数</td><td>'+G.crit+' 回</td></tr>';
   h+='<tr><td>安売りした回数</td><td>'+G.yasu+' 回</td></tr>';
@@ -551,7 +657,10 @@ function ending(kind){
     h+='<p class="sp">──<b>生産性悪化の権化</b>は、見積の前日にこそ 隣に立っている。</p>';
     h+='<p>ミヤカワ「文句ばっかり言ってる、て言われるけどね。</p>';
     h+='<p style="margin-left:1em">……いちばん現場のこと考えてるもんで、文句が出るだら」</p>';
-    h+='<p style="text-align:center;color:#7fd6a2;margin-top:10px">そして4人は、木曜日の練習場へ向かった。</p>';
+    h+='<p style="color:#ffd24a;margin-top:10px">──そして 会議室の机に、ケーキが 出てきた。</p>';
+    h+='<p style="color:#ffd24a">4人「タカハシくん、お誕生日 おめでとう！」</p>';
+    h+='<p>タカハシ「もう。……びっくりするだら」</p>';
+    h+='<p style="text-align:center;color:#7fd6a2;margin-top:10px">そして一行は、ケーキを切り分けて、木曜日の練習場へ向かった。</p>';
   }
   h+='<p style="text-align:center;color:#ffe14a;margin-top:10px">— 見積もりクエスト・完 —</p>';
   h+='<button class="big" id="ag">もういちど</button>';
@@ -588,6 +697,41 @@ function fxDie(E){
   CUR=E; FX.mode='die'; FX.t=0; FX.dur=104; FX.shake=5; FX.flash=0; FX.tint='#ffffff';
   FX.parts=makeParts(E); startFx();
 }
+/* 撃破ではなく お祝い。紙吹雪と ハートが 舞い上がる */
+function fxCele(E){
+  CUR=E; FX.mode='cele'; FX.t=0; FX.dur=132; FX.shake=0; FX.flash=0; FX.tint='#ffe14a';
+  FX.parts=makeCele(); startFx();
+}
+function makeCele(){
+  var pal=['#ffd24a','#ff8ab0','#7fd6a2','#8ad0ff','#ffffff','#ff5a7a','#ffa8d0'], a=[], i;
+  for(i=0;i<72;i++){
+    a.push({x:14+Math.random()*292, y:150+Math.random()*46,
+            vx:(Math.random()*2-1)*0.7, vy:-(1.0+Math.random()*2.3),
+            s:3+Math.floor(Math.random()*4),
+            c:pal[i%pal.length], h:(i%4===0), w:Math.random()*6.28});
+  }
+  return a;
+}
+function drawCele(){
+  var i,p;
+  for(i=0;i<FX.parts.length;i++){
+    p=FX.parts[i];
+    p.w+=0.16; p.x+=p.vx+Math.sin(p.w)*0.7; p.y+=p.vy; p.vy+=0.008;
+    var al=Math.min(1,Math.max(0,1-(FX.t-84)/48));
+    if(al<=0) continue;
+    cx.save(); cx.globalAlpha=al;
+    if(p.h) drawHeart(Math.round(p.x),Math.round(p.y),Math.max(1,Math.round(p.s/2)),p.c);
+    else px(Math.round(p.x),Math.round(p.y),Math.round(p.s),Math.round(p.s*1.4),p.c);
+    cx.restore();
+  }
+}
+function drawHeart(x,y,u,c){
+  px(x+u,   y,     2*u, u, c); px(x+4*u, y,     2*u, u, c);
+  px(x,     y+u,   7*u, 2*u, c);
+  px(x+u,   y+3*u, 5*u, u, c);
+  px(x+2*u, y+4*u, 3*u, u, c);
+  px(x+3*u, y+5*u, u,   u, c);
+}
 function makeParts(E){
   var pal=PALETTE[E.sp]||PALETTE.calc, a=[],i;
   for(i=0;i<74;i++){
@@ -606,7 +750,7 @@ function loop(){
     if(RAF){ FX.running=true; RAF(loop); }
     else { FX.t=FX.dur; FX.mode=''; FX.running=false; }
   }else if(FX.mode){
-    if(FX.mode==='die') CUR=null;          // 倒した敵は 二度と出てこない
+    if(FX.mode==='die'||FX.mode==='cele') CUR=null;   // 出番の済んだ相手は 引っこむ
     FX.mode=''; FX.parts=[]; FX.running=false; drawScene();
   }else{ FX.running=false; }
 }
@@ -635,6 +779,9 @@ function drawScene(){
       }else{                                         // ② 砕けて 飛び散る
         drawParts();
       }
+    }else if(FX.mode==='cele'){                      // お祝い：本人は そのまま、紙吹雪が 舞う
+      drawBody(E);
+      drawCele();
     }else if(FX.mode==='in'){                        // 登場：4回 点滅
       if(Math.floor(FX.t/4)%2===0) drawBody(E);
     }else{
@@ -651,9 +798,12 @@ function drawScene(){
     if(FX.t>=30&&FX.t<40) f=1.0-(FX.t-30)/10*0.35;   // 砕ける瞬間の 白フラッシュ
     else if(FX.t>=40)     f=Math.max(0,0.4-(FX.t-40)/60);
   }
+  if(FX.mode==='cele'){                              // 白フラッシュではなく やさしい黄色
+    if(FX.t<26) f=0.30*(1-FX.t/26);
+  }
   if(f>0){
     cx.save(); cx.globalAlpha=Math.min(1,f);
-    cx.fillStyle=(FX.mode==='atk')?'#ff3a2a':'#ffffff';
+    cx.fillStyle=(FX.mode==='atk')?'#ff3a2a':((FX.mode==='cele')?'#ffe6a0':'#ffffff');
     cx.fillRect(0,0,320,168); cx.restore();
   }
 
@@ -663,7 +813,11 @@ function drawScene(){
   }
   if(FX.mode==='die' && FX.t>=44){
     cx.fillStyle='#ffe14a'; cx.font='13px "MS Gothic", monospace';
-    cx.fillText('なっとく 0 ！', 108, 88);
+    cx.fillText((CUR&&CUR.gauge?CUR.gauge:'なっとく')+' 0 ！', 108, 88);
+  }
+  if(FX.mode==='cele' && FX.t>=20){
+    cx.fillStyle='#ffe14a'; cx.font='13px "MS Gothic", monospace';
+    cx.fillText('＊ よろこび MAX！ ＊', 88, 26);
   }
 }
 function tintSprite(c,a){                            // 描いた絵の上だけを 染める
@@ -704,6 +858,40 @@ function drawBody(E){
     px(X-8,Y+4,20,4,'#2a3a6a');
     px(X+24,Y+28,10,34,'#8a6a4a');
     for(i=0;i<5;i++) px(X-40+i*18,Y+38,12,16,'#6a80c8');
+  }else if(E.sp==='takahashi'){             // タカハシくん（野菜ソムリエ・お誕生日）
+    var HR='#7a4a28', HR2='#96602f', SK='#f2cda2', SH='#8a2a3a', SH2='#a8394b', AP='#17171c';
+    /* ポニーテール（右うしろに 束ねた髪） */
+    px(X+22,Y-50,10,10,HR2); px(X+26,Y-42,12,30,HR); px(X+30,Y-16,10,16,HR);
+    /* 髪・顔 */
+    px(X-26,Y-58,52,18,HR); px(X-28,Y-46,8,26,HR); px(X+20,Y-46,8,18,HR);
+    px(X+18,Y-40,12,7,'#d8b04a');           // 髪どめ（ポニーテールの根元）
+    px(X-20,Y-48,40,36,SK);
+    px(X-24,Y-52,44,8,HR);                  // 前髪
+    /* 笑った目（＾＾） */
+    px(X-16,Y-32,4,3,'#2a1a12'); px(X-12,Y-35,4,3,'#2a1a12'); px(X-8,Y-32,4,3,'#2a1a12');
+    px(X+4,Y-32,4,3,'#2a1a12');  px(X+8,Y-35,4,3,'#2a1a12');  px(X+12,Y-32,4,3,'#2a1a12');
+    px(X-20,Y-26,7,4,'#f0a09a'); px(X+13,Y-26,7,4,'#f0a09a'); // ほほ
+    px(X-6,Y-22,12,4,'#8a3a3a'); px(X-8,Y-24,3,3,'#8a3a3a'); px(X+5,Y-24,3,3,'#8a3a3a');
+    /* 首・えんじのシャツ */
+    px(X-6,Y-12,12,7,SK);
+    px(X-30,Y-6,60,44,SH);
+    px(X-42,Y-4,12,22,SH); px(X+30,Y-4,12,22,SH);   // 袖
+    px(X-10,Y-6,20,7,SH2);                          // 襟
+    /* 黒いエプロン */
+    px(X-14,Y-4,28,10,AP);
+    px(X-17,Y-4,4,8,AP); px(X+13,Y-4,4,8,AP);       // 肩ひも
+    px(X-24,Y+6,48,36,AP);
+    px(X-12,Y+18,24,12,'#26262e');                  // ポケット
+    /* 手 */
+    px(X-44,Y+16,12,10,SK); px(X+32,Y+16,12,10,SK);
+    /* 左手：トマト */
+    px(X-54,Y+2,20,18,'#d8402e'); px(X-50,Y+6,6,5,'#f06a52');
+    px(X-48,Y-2,8,5,'#4aa04a');
+    /* 右手：にんじん */
+    px(X+40,Y-8,12,9,'#4aa04a'); px(X+44,Y-14,5,7,'#4aa04a');
+    px(X+40,Y+1,12,8,'#e07a20'); px(X+42,Y+9,8,8,'#e07a20'); px(X+44,Y+17,4,7,'#e07a20');
+    /* 脚 */
+    px(X-18,Y+42,11,16,'#2a2a34'); px(X+7,Y+42,11,16,'#2a2a34');
   }else{                                    // 納期ドラゴン
     px(X-84,Y-28,50,56,'#f0ece0'); px(X+36,Y-28,50,56,'#f0ece0');
     px(X-84,Y-28,50,10,'#c83a3a'); px(X+36,Y-28,50,10,'#c83a3a');
@@ -743,13 +931,13 @@ function title(){
   h+='<p style="text-align:center;color:#9a9a9a;font-size:11px">木曜の野望 ─ OHMAMA SOFT</p>';
   h+='<p>防振スポンジパッド 3,000個。客先の購買と、<b>4工程ぶんの単価</b>を賭けた'
     +'見積検討会が はじまる。</p>';
-  h+='<p>受け入れ → 加工 → 検査 → 納品の <b>4連戦</b>。'
-    +'最後に立ちはだかるのは <b>納期ドラゴン</b>。</p>';
+  h+='<p>受け入れ → 加工 → 検査 → 納品の <b>4連戦＋α</b>。'
+    +'最後に立ちはだかるのは <b>納期ドラゴン</b>……のはず。</p>';
   h+='<p style="color:#7fd6a2">◆ <b>みつもり</b>＝単価を選んで提示する。安いほど相手は納得するが、'
     +'<b>あらり</b>（HP）が消し飛ぶ。<br>'
     +'◆ <b>だんまり</b>＝沈黙で耐える。被害が減り、相手が先に しゃべることがある。<br>'
     +'◆ <b>じゅもん</b>＝値段を下げずに納得させる手。<b>こんきょ</b>（MP）を使う。<br>'
-    +'◆ <b>にげる</b>＝持ち帰り。根拠は作り直せるが、3回で 失注。</p>';
+    +'◆ <b>にげる</b>＝持ち帰り。根拠は作り直せるが、'+TUNE.NIGE+'回で 失注。</p>';
   h+='<p style="color:#ff8a7a">◆ 相手の技：ねぎり／中国シフト／てんちゅう攻撃／じかん測定／'
     +'品質重点工場／ぶちょうのほうもん／家電デストロイヤー／ＴＶ台の上で ふしぎな踊り／なかまを よんだ！</p>';
   h+='<p style="color:#7fd6a2">◆ 接待は キラキラ ＜ ブラン ＜ VIPカンランシャ の順に 効く（あらりも その順に 飛ぶ）。<br>'
