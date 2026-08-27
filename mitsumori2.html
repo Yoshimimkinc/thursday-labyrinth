@@ -97,7 +97,8 @@ canvas{display:block;width:100%;height:auto;image-rendering:pixelated;image-rend
    ========================================================================= */
 
 var TUNE = {
-  ARA0: 136,    // あらり（AP）※5連戦化で +12
+  ARA0: 150,    // あらり（AP）※6連戦の長旅なので 増量
+  EDMG: 0.75,   // 敵の攻撃力の 全体係数（難しければ ここを下げる）
   LVUP: 11,     // レベルアップ時に もどる あらり
   MP0:  30,     // こんきょ（MP）
   NIGE: 4,      // 持ち帰り（にげる）の上限。超えると失注
@@ -702,6 +703,7 @@ function enemyTurn(E){
       }
     }else{
       var d=rnd(S.dmg[0],S.dmg[1]);
+      d=Math.round(d*TUNE.EDMG);
       d=Math.round(d*(1+TUNE.HELP*G.help));
       if(G.soft>0){ d=Math.round(d*0.5); G.soft--; }
       else if(G.soft<0){ d=Math.round(d*1.3); G.soft=0; }
