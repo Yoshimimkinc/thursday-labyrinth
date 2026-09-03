@@ -1,0 +1,1574 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>見積もりクエスト＜ＲＯＩＣバトルロワイヤル＞ — 木曜の野望</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{min-height:100%;background:#000;color:#fff;
+  font-family:'MS Gothic','Osaka-Mono','Hiragino Kaku Gothic ProN',monospace;
+  -webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;user-select:none;}
+body{display:flex;justify-content:center;}
+#wrap{width:100%;max-width:420px;background:#000;min-height:100vh;padding:6px 6px 12px;}
+
+.win{border:3px solid #fff;border-radius:6px;background:#000;padding:6px 8px;margin-bottom:6px;}
+
+#top{display:flex;gap:6px;}
+#stat{flex:1;font-size:12.5px;line-height:1.6;}
+#stat .v{float:right;}
+#stat .low{color:#ff8a7a;}
+#chain{width:100px;font-size:10px;line-height:1.42;color:#8a8a8a;white-space:nowrap;}
+#chain .on{color:#ffe14a;}
+#chain .dn{color:#7fd6a2;}
+
+#scene{border:3px solid #fff;border-radius:6px;background:#000;margin-bottom:6px;overflow:hidden;}
+canvas{display:block;width:100%;height:auto;image-rendering:pixelated;image-rendering:crisp-edges;}
+
+#msg{min-height:122px;font-size:13.5px;line-height:1.62;cursor:pointer;}
+#msg p{margin-bottom:1px;}
+#msg .dmg{color:#ffe14a;}
+#msg .crit{color:#ff9a4a;}
+#msg .bad{color:#ff8a7a;}
+#msg .good{color:#7fd6a2;}
+#msg .sp{color:#c9a6ff;}
+#msg .sys{color:#9a9a9a;}
+#msg .yen{color:#8ad0ff;}
+#nx{text-align:right;font-size:11px;height:14px;color:#9a9a9a;}
+#nx.on:after{content:'▼';animation:bl .7s infinite;}
+@keyframes bl{50%{opacity:.15;}}
+
+#cmd{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+.it{padding:7px 4px 7px 19px;font-size:13.5px;position:relative;cursor:pointer;color:#fff;}
+.it:active:before,.it.sel:before{content:'▶';position:absolute;left:4px;color:#ffe14a;}
+.it .c{float:right;font-size:10.5px;color:#9a9a9a;padding-right:3px;}
+.it.no{color:#5a5a5a;pointer-events:none;}
+.it.wide{grid-column:1 / -1;}
+#cmd.off{opacity:.25;}
+#cmd.off .it{pointer-events:none;}
+#cmd.sp .it{font-size:11.5px;padding:6px 2px 6px 15px;}
+
+#veil{position:fixed;inset:0;background:#000;z-index:9;display:flex;
+  align-items:center;justify-content:center;padding:14px;}
+#veil.hide{display:none;}
+#vin{max-width:400px;width:100%;max-height:96vh;overflow-y:auto;border:3px solid #fff;
+  border-radius:6px;padding:14px;font-size:13px;line-height:1.78;}
+#vin h2{font-size:19px;text-align:center;letter-spacing:2px;margin-bottom:10px;color:#ffe14a;}
+#vin p{margin-bottom:8px;}
+#vin .rank{font-size:24px;color:#ffe14a;text-align:center;letter-spacing:4px;margin:10px 0;}
+#vin table{width:100%;font-size:12.5px;border-collapse:collapse;margin:6px 0 10px;}
+#vin td{border-bottom:1px solid #444;padding:3px 5px;}
+#vin td:last-child{text-align:right;color:#ffe14a;}
+#vin .sp{color:#c9a6ff;}
+.big{width:100%;padding:10px;background:#000;border:3px solid #fff;border-radius:6px;
+  color:#ffe14a;font-size:15px;letter-spacing:3px;cursor:pointer;font-family:inherit;margin-top:8px;}
+.big:active{background:#222;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="top">
+    <div class="win" id="stat"></div>
+    <div class="win" id="chain"></div>
+  </div>
+  <div id="scene"><canvas id="g" width="320" height="168"></canvas></div>
+  <div class="win" id="msg"><div id="txt"></div><div id="nx"></div></div>
+  <div class="win off" id="cmd"></div>
+</div>
+<div id="veil"><div id="vin"></div></div>
+
+<script>
+"use strict";
+/* =========================================================================
+   見積もりクエスト＜ＲＯＩＣバトルロワイヤル＞ — 木曜の野望
+   OHMAMA SOFT Adventure Series / 木曜日の迷宮 Vol.6 外伝 第3作
+   単一HTML・バニラJS・依存なし。エンジンは＜インドの花嫁＞を踏襲。
+   -------------------------------------------------------------------------
+   芯：変わりゆく世界情勢、国債の金利は3%越え。経営者の秋を駆け抜ける 6連戦。
+       銀行の金利面談 → ＲＯＩＣ見積もりバトルロワイヤル → 組合お疲れ様会
+       → 10月のゴルフ「100の壁」→ インド視察の計画づくり → そして──？
+       隠しボスは「変わりゆく世界情勢」そのもの。誰にも倒せないが、
+       振り回されない経営はできる。弱点は 木曜日の約束（続けてきたもの）。
+       ※ゴルフ戦の芯：約束の訓練を重ねて100を叩かないゴルフがしたい。
+         でも終わってみると、慣れ親しんだ数値が並ぶスコアカード。
+   ========================================================================= */
+
+var TUNE = {
+  ARA0: 150,    // あらり（AP）※6連戦の長丁場なので 増量
+  EDMG: 0.75,   // 敵の攻撃力の 全体係数（難しければ ここを下げる）
+  LVUP: 11,     // レベルアップ時に もどる あらり
+  MP0:  30,     // こんきょ（MP）
+  NIGE: 4,      // 立て直し（にげる）の上限。超えると秋が終わる
+  CRIT: 0.12,
+  ALLY: 0.30,   // 仲間が 勝手に 助太刀する確率
+  SPONGE: 0.10, // スポンジマンの妨害が 出る確率
+  TALK:  0.50,  // だんまりで 相手が 先にしゃべる確率
+  WEAK:  2.0,   // 弱点（効果ばつぐん）の倍率
+  HELP:  0.16,  // 応援ひとりあたり 相手の攻撃が 強くなる割合
+  RANK:  [106, 71, 37]   // 天下布武 / 惣無事令 / 一国一城 の あらりしきい値
+};
+
+/* ---------- じゅもん（経営者の秋の技） ----------
+   only:<敵index> 付きは、その舞台でしか使えない「ご当地の技」 */
+var SPELLS = [
+  {nm:'クリアゲヘンサイ', mp:4, only:0, attr:'kuriage', pw:[20,26], ara:-4,
+   t:'「この分、繰り上げで 返します。──金利が 上がる前にね」',
+   e:'借金は 元気なうちに 返す。金利3パーセント時代の 基本動作だに。あらりは 少し 飛ぶ。'},
+  {nm:'ＲＯＩＣケイエイ', mp:5, only:1, attr:'roic', pw:[22,28], ara:0,
+   t:'「投下資本利益率──注ぎこんだ お金が、なんぼ 稼いだか。うちは この数字で 勝負しとります」',
+   e:'いつか 商談で 相手に 使われた技。悔しくて、覚えた。安値の見積もりには、これが 刺さる。'},
+  {nm:'イッポンジメ', mp:5, only:2, attr:'ippon', pw:[22,28], ara:0,
+   t:'「よぉーっ……（パン！）　ありがとうございました！」',
+   e:'どんなに 長い宴会も、これで 美しく 終わる。日本の 伝統芸。'},
+  {nm:'ヤクソクノクンレン', mp:5, only:3, attr:'kunren', pw:[22,28], ara:0,
+   t:'「毎週木曜、欠かさず 振ってきた この スイング──見とけよ！」',
+   e:'約束の訓練は、裏切らない。……裏切らないと、信じたい。'},
+  {nm:'コンサルカツヨウ', mp:5, only:4, attr:'consul', pw:[22,28], ara:-3,
+   t:'「進出や 税務の 手続きは、その道のプロに 相談してあります」',
+   e:'インドの規制運用は 属人的。コンサル活用は 必須──前の出張で 学んだに。'},
+  {nm:'モクヨウビノヤクソク', mp:8, only:5, attr:'yakusoku', pw:[22,28], ara:0,
+   t:'「世界が どう変わろうと──俺たちは 木曜日、練習場に おる！」',
+   e:'変わりゆく世界で、変わらんものを ひとつ 持っとる。それが いちばん 効く。'},
+  {nm:'アラリダイイチ', mp:6, attr:'arari', pw:[19,25], ara:0,
+   t:'「売上より あらり。借りる力より、稼ぐ力だに」',
+   e:'金利が 上がる時代は、あらりの 厚い会社から 強くなる。'},
+  {nm:'ゲンカケイサン', mp:6, attr:'genka', pw:[19,25], ara:0,
+   t:'「材料、加工、段取り、電気代──ぜんぶ 積み上げた数字が、これです」',
+   e:'原価の わかっとる会社は、値引きの 限界も わかっとる。'},
+  {nm:'キャッシュハアク', mp:5, attr:'cash', pw:[15,20], ara:2,
+   t:'「現預金の 残高なら、毎朝 見とります」',
+   e:'金利の時代は、現金の置き場所も 経営判断。あらりが 少し 育つ。'},
+  {nm:'ネアゲノオネガイ', mp:7, attr:'neage', pw:[20,27], ara:0,
+   t:'「……たいへん 申し上げにくいのですが、来期から 単価の 見直しを」',
+   e:'言いにくい。けど 言わんと、会社が 削れていく。経営者の 覚悟の一手。'},
+  {nm:'カイゼンテイアン', mp:6, attr:'kaizen', pw:[19,24], ara:0,
+   t:'「この工程、こう 変えると 3秒 縮まります」',
+   e:'値段の前に、中身で 詰める。ものづくりの 王道だら。'},
+  {nm:'ホンネトーク', mp:4, attr:'open', pw:[11,16], ara:0, mpback:7,
+   t:'「正直に 言います。この条件だと、作るほど 赤字なんです」',
+   e:'腹を割ると、話が早い。こんきょが 戻る。'},
+  {nm:'セッタイゴルフ', mp:7, attr:'settai', pw:[19,24], ara:-6, soft:2,
+   t:'「こんど 一緒に、回りませんか。いいコース 知っとります」',
+   e:'翌週、相手の当たりが やわらかい。……あらりは 少し 飛ぶ。'},
+  {nm:'シャチョウノケツダン', mp:13, attr:'ketsudan', pw:[32,40], ara:-8, once:true,
+   t:'「──よし、決めた。責任は 俺が 持つ」',
+   e:'会議が 一瞬で 終わる、最強で 最高コストの技。乱発は できん。'}
+];
+
+/* ---------- 敵の技 ---------- */
+var SKILLS = {
+  kinri:  {nm:'キンリジョウショウ',   line:'「国債の金利が 3パーセントを 越えましてね。お借入の利率も、見直しの お時間です」', dmg:[15,21]},
+  sueoki: {nm:'スエオキキカンシュウリョウ', line:'「据置期間、今月で 終わりですよ」',            dmg:[13,18]},
+  tanpo:  {nm:'ツイカタンポノオネガイ', line:'「念のため、追加の ご担保を……」',                dmg:[12,17], mp:3},
+  teiki:  {nm:'テイキノススメ',       line:'「余った資金、定期に しませんか。……え、利率ですか。それは その」', dmg:[9,14]},
+  aimitsu:{nm:'アイミツサンシャ',     line:'「他社さん、この値段 なんですよねえ」（見積書を ひらひら させている）', dmg:[15,21]},
+  saitei: {nm:'サイテイカカクノテイジ', line:'「うちは 利益 度外視で いきます！」（──それ、続かんだら）', dmg:[14,20]},
+  noki:   {nm:'ノウキゼンダオシ',     line:'「うちなら 納期、半分で やれます！」（……ほんとか？）', dmg:[13,18], mp:3},
+  nesage: {nm:'あと5パーセント',      line:'「あと 5パーセント。それで 御社に 決めますから」',    dmg:[16,22]},
+  chourou:{nm:'チョウロウノカンパイアイサツ', line:'（乾杯の挨拶が、12分を 経過した。ビールの泡が 消えていく）', dmg:[13,18]},
+  oshaku: {nm:'オシャクノラッシュ',   line:'「まあまあ まあまあ、ひとつ ひとつ」（グラスが 空にならない）', dmg:[12,17], mp:3},
+  bingo:  {nm:'ビンゴタイカイ',       line:'（リーチのまま 20分。景品の掃除機だけが 遠い）',      dmg:[10,15], mp:4},
+  nijikai:{nm:'ニジカイノサソイ',     line:'「このあと、もう一軒だけ！　ね！」',                  dmg:[14,20]},
+  obi:    {nm:'ミギヘオオキクＯＢ',   line:'（打った瞬間に わかる音がした。ボールは 右の林へ──）', dmg:[16,22]},
+  ike:    {nm:'イケポチャノヒビキ',   line:'（ポチャン。……静かな池に、波紋が ひとつ）',          dmg:[14,20]},
+  sanpat: {nm:'サンパット',           line:'（上りの 1メートル。……なぜ 外れるだ）',              dmg:[13,18]},
+  kazekyo:{nm:'アゲンストノカゼ',     line:'（フォローだと 思っとった秋の風が、打った瞬間 アゲンストに 変わった）', dmg:[10,15], mp:3},
+  godan:  {nm:'シンサクドライバーノゴウダン', line:'（カキーン。──いい音は 道具が出すのか、腕が出すのか）', dmg:[16,22]},
+  pitari: {nm:'キョリケイピッタリショット', line:'「ピンまで 132ヤード。……はい、ピタリ」（距離計、つよい）', dmg:[14,20]},
+  aura:   {nm:'マークアンドロナノオーラ', line:'（ウェアが まぶしい。こっちの上下は、いつもの ワークマンだ）', dmg:[10,15], mp:3},
+  shigoto:{nm:'シゴトノデンワチュウダン', line:'しょちょう「──ちょっと ごめんよ、工場からだ」（お互いさますぎて、何も 言えん）', dmg:[8,12], mp:4},
+  evisa:  {nm:'イービザノメイロ',     line:'（入力画面 14ページ目。写真の背景色で 差し戻された）', dmg:[14,20]},
+  yobou:  {nm:'ヨボウセッシュノヨヤク', line:'（A型肝炎、破傷風、腸チフス……打つ腕が 足りん）',   dmg:[12,17], mp:3},
+  nittei: {nm:'ニッテイパズル',       line:'（先方の都合、便の都合、木曜の都合。──カレンダーが 詰んでいく）', dmg:[13,18]},
+  mail:   {nm:'ショータケサンカラノメール', line:'「ご来訪、お待ちしております。──例の 10パーセントの件も、ぜひ 現地で」', dmg:[15,21], mp:3},
+  kinri3: {nm:'キンリノツバサ',       line:'（翼が はためくたび、世界のどこかで 金利が 上がる）', dmg:[17,23]},
+  enyasu: {nm:'エンヤスノブレス',     line:'（円が 溶けていく。輸入材の値札が、書き換わっていく──）', dmg:[16,22]},
+  kanzei: {nm:'ツイカカンゼイノキバ', line:'「どこかの国が、また 関税を 上げたぞ」',              dmg:[16,22], mp:3},
+  sokuho: {nm:'ニュースソクホウ',     line:'（ピロン。──見なきゃいいのに、見てしまう）',          dmg:[6,10], mp:6},
+  jousei: {nm:'セカイジョウセイノメグミ', line:'（うずの中で、ドラゴンが 力を 取り戻していく）',  dmg:[3,6], heal:12},
+  yobu:   {nm:'なかまをよんだ！',     line:'「ちょっと 上の者を 呼びますね」',                    dmg:[0,0], call:true}
+};
+
+/* ---------- 6連戦（経営者の秋の陣） ---------- */
+var PALETTE = {
+  kinri:  ['#2a3a54','#f2cda2','#c8c8d0','#ff5a4a','#ffd24a'],
+  aimitsu:['#3a3a4a','#f2cda2','#f0ece0','#8ad0ff','#c83a3a'],
+  enkai:  ['#c83a3a','#f2a08a','#ffd24a','#ffffff','#5a3a1a'],
+  shocho: ['#17171c','#f2cda2','#ffffff','#ffd24a','#ff5a4a'],
+  yama:   ['#f0ece0','#c8c8d0','#8ad0ff','#ff5a4a','#5a3a1a'],
+  dragon: ['#3a2a5a','#6a4a9a','#ff5a4a','#ffd24a','#8ad0ff']
+};
+
+var ENEMIES = [
+  { nm:'キンリサンパー', short:'銀行', sp:'kinri', hp:10, weak:'arari',   // 激よわ：どの一手でも ほぼ一発（ゲーム時間短縮）
+    head:'── 第1ラウンド：メインバンク 金利面談 ──', cmd:'たいおう',
+    presents:[
+      {nm:'きんりをこうしょうする', dmg:18, ara:0,
+       t:'「他行さんは、もう ちょっと がんばって くれるだけどね」',
+       r:'「……上と 相談させてください」'},
+      {nm:'ざんだかをみせる', dmg:20, ara:0,
+       t:'「現預金、これだけ あるに。──貸したく なったら？」',
+       r:'（担当の目の色が 変わった）'},
+      {nm:'つきあいのていき', dmg:12, ara:-4,
+       t:'「長い付き合いだでね。定期、もう1本 作っとくよ」',
+       r:'「いつも ありがとうございます！」'},
+      {nm:'むしゃっきんせんげん', dmg:34, ara:-14, wide:true,
+       t:'「──ぜんぶ 返す！　うちは もう、借りんくても 回るだよ！」',
+       r:'「そ、そんな……優良な お客様なのに……」'}
+    ],
+    say:'「本日は 金利の ご相談でして……。国債も 3パーセントを 越えましたので、ええ、その、お宅さまの お借入も」',
+    guchi:'ミヤカワ「金利が 上がると 聞いた晩は、借入の一覧 ながめとるだよ。……いや、上がる前に ながめとけって話だに」',
+    hit:'「……あらりの 厚い会社さんには、正直、強くは 言えんのです」',
+    guardline:'「……えー、では 金利のほうは、また 改めて」',
+    exp:10, win:'条件、すえおき！　銀行は 深々と 頭を下げて 帰っていった。',
+    fact:'国債金利が 3パーセントを 越えると、借入も 預金も 利率が 動く。借りて拡げる経営から、稼いで（あらりで）守る経営へ──潮目が 変わったに。',
+    skills:['kinri','sueoki','tanpo','teiki'] },
+  { nm:'アイミツさんきょうだい', short:'あいみつ', sp:'aimitsu', hp:60, weak:'roic',
+    head:'── 第2ラウンド：ＲＯＩＣ見積もりバトルロワイヤル ──',
+    prices:[[24,6,3],[22,15,0],[20,25,-9],[17,42,-22]],
+    say:'「本案件、3社の 相見積もりと なっております」──ゴングが 鳴った。バトルロワイヤル、開始。',
+    guchi:'高林「あいみつは しょうがない。うちらも 頼む側なら 取るだで。……ただ、安さだけで 決まる勝負は、勝っても 負けだに」',
+    hit:'「……とうかしほん りえきりつ？　う、うちは そんな数字、出しとらん……」',
+    exp:12, win:'2社は 電卓を 置いた。安さではなく、数字の中身で 勝った！',
+    fact:'ＲＯＩＣ＝投下資本利益率。「いくら売ったか」より「注ぎこんだお金が なんぼ稼いだか」。安値で取った仕事は、この数字が 正直に 泣くだに。',
+    skills:['aimitsu','saitei','noki','nesage','yobu'] },
+  { nm:'エンカイノヌシ', short:'えんかい', sp:'enkai', hp:70, weak:'ippon', jime:true,
+    head:'── 第3ラウンド：ＴＥＫＮＯ青年組合・年度お疲れ様会 ──', cmd:'おつきあい',
+    presents:[
+      {nm:'ウーロンハイといつわる', dmg:16, ara:-2,
+       t:'「俺、ウーロンハイで。……（中身は ウーロン茶だに）」',
+       r:'「飲んどる 飲んどる！」──今回も だませて いる。'},
+      {nm:'おしゃくにまわる', dmg:18, ara:0,
+       t:'「どうも どうも、今年度も お世話になりまして」',
+       r:'（一周 回って、顔と名前が 3割がた 一致した）'},
+      {nm:'スピーチをひきうける', dmg:20, ara:0,
+       t:'「──では 僭越ながら、乾杯の音頭を。短めに いきます」',
+       r:'「短い！　いいぞ！」──株が 上がった。'},
+      {nm:'にじかいまでいく', dmg:34, ara:-12, wide:true,
+       t:'「ええい、行くだ！　カラオケ 2時間！」',
+       r:'大盛況だ。──あしたの 俺、ごめん。'}
+    ],
+    say:'「今年度も おつかれさまでした！　まずは ビールで──おっと、そこ、グラスが 空いとるよ！」',
+    guchi:'佐藤「組合の集まりは 断れんだよねえ。……いや、行きゃ 行ったで 楽しいだけどさ。帰り際の『もう一軒』が 効くだに」',
+    hit:'「──おっ、締める気配！　……まだ 早いら？」',
+    guardline:'「……お、おとなしいねえ 今夜は。まあ 飲みな 飲みな」',
+    exp:16, win:'「──それでは 最後は、恒例の 三本締めで！　音頭は……おたくさん！」　全員の視線が、こちらに 集まった。',
+    fact:'協同組合の縁は、見積もりより 長持ちする。仕事の相談も 困りごとも、だいたい 宴会の隅で 決まる。──乾杯は 断るな、だに。',
+    skills:['chourou','oshaku','bingo','nijikai'] },
+  { nm:'しょちょう', short:'ゴルフ', sp:'shocho', hp:80, weak:'kunren', gauge:'きんちょう',
+    head:'── 第4ラウンド：ＲＯＩＣ杯ゴルフ大会・100の壁 ──', cmd:'トーク',
+    pre:[
+      ['sys','── 10月。ＲＯＩＣ杯ゴルフ大会。組み合わせ表に、全員が 目を走らせる。'],
+      ['','佐藤「……俺、しょちょうと 同組かい」　ミヤカワ「たのんだに」'],
+      ['','岩田「なんで コンペ名が ＲＯＩＣ杯なんだ」　高林「かっこいいで、だら」']
+    ],
+    presents:[
+      {nm:'クラブをほめる', dmg:20, ara:0,
+       t:'「──それ、テーラーメードの 新作だら！？　もう 手に入っただ！？」',
+       r:'しょちょう「ふっふっふ。発売日に ね。──ちょっと 打ってみるかね」（うれしそうだ）'},
+      {nm:'ウェアをほめる', dmg:20, ara:0,
+       t:'「全身 マーク＆ロナ……！　優勝候補は オーラが 違うに」',
+       r:'しょちょう「わかるかね。形から入るのも、経営と おんなじだよ」'},
+      {nm:'きょりけいのわだい', dmg:16, ara:-3,
+       t:'「その距離計、高低差も 出るやつですか」',
+       r:'しょちょう「出る出る。風も 出る」──（その晩、ポチった。あらりが 少し 飛んだ）'},
+      {nm:'たんかのわだい', dmg:14, ara:2,
+       t:'「──ところで 来期の単価の件、あれから どうでしょう」',
+       r:'しょちょう「きみ、ティーグラウンドでも その話かね」（──でも、少し 進んだ）'},
+      {nm:'うんちんのわだい', dmg:14, ara:2,
+       t:'「最近、運賃も 上がっとりましてね。燃料も 人も」',
+       r:'しょちょう「うちも 物流費には 泣かされとるよ」──わかりあえた。'},
+      {nm:'レートのわだい', dmg:12, ara:2,
+       t:'「円、また 安くなりましたね。輸入材が しんどくて」',
+       r:'しょちょう「その話は ホールアウトしてからだ。……ま、うちも 痛いがね」'}
+    ],
+    say:'全身 マーク＆ロナのウェアに、テーラーメードの新作ドライバーを 握りしめている。──「今日は よろしく。手加減は せんよ」',
+    guchi:'ミヤカワ「俺たちは 約束の訓練を重ねて、100を叩かんゴルフが したいだけだに。……なのに 終わってみると、慣れ親しんだ数字が 並んどる スコアカード」',
+    hit:'（訓練どおりの球が 出た！）しょちょう「……きみ、やっとるね」',
+    guardline:'しょちょう「……静かだねえ。緊張かね？　まあ、いいスイングだ」',
+    exp:20, win:'──ホールアウト。ミヤカワ、99！　ついに 100の壁を 越えた！　しょちょう「次は 負けんよ」　……同組の佐藤のカードには、慣れ親しんだ数字が 並んだ。',
+    fact:'新作ドライバーも 距離計も、投下資本。使いこなして スコア（成果）になって、はじめて ＲＯＩＣが 上がる。──設備投資と おんなじだに。',
+    skills:['godan','pitari','aura','shigoto','sanpat'] },
+  { nm:'シサツケイカクノヤマ', short:'インド', sp:'yama', hp:88, weak:'consul',
+    head:'── 第5ラウンド：インド視察旅行・計画づくり ──', cmd:'だんどり',
+    presents:[
+      {nm:'フライトをおさえる', dmg:18, ara:-3,
+       t:'「羽田発 バンコク乗継、チェンナイ行き。──もう 道順は 覚えたに」',
+       r:'（予約完了。マイルも 貯まる）'},
+      {nm:'アポをとる', dmg:20, ara:0,
+       t:'「ショータケさん、12月の第2週は いかがですか」',
+       r:'「お待ちしております」──即レスだった。'},
+      {nm:'イービザをしんせいする', dmg:16, ara:0,
+       t:'「写真の背景は 白……入力は ローマ字……よし」',
+       r:'（14ページを 乗り切った。人間は 成長する）'},
+      {nm:'だいりてんにまるなげ', dmg:12, ara:-8,
+       t:'「──もう ぜんぶ お願いします！」',
+       r:'（早い。確実。そして あらりが 飛ぶ）'}
+    ],
+    say:'（机の上に、見積書・地図・予防接種の予診票・eビザの印刷物が 山と 積まれている──）',
+    guchi:'ミヤカワ「行くと決めた瞬間が いちばん元気だに。……段取りの山を見て、ちょっと 後悔しとる。いや、行くけどね。行くだけどね」',
+    hit:'（プロの手際で、山が みるみる 崩れていく──）',
+    guardline:'（山は 待ってくれない。締切だけが 近づいてくる）',
+    exp:24, win:'旅程 確定！　12月、チェンナイへ。──ショータケさんが 待っとる。',
+    fact:'インド出張の段取りは、eビザ・予防接種・アポ取りで ひと山。規制運用は 属人的で、コンサル活用が 必須。ちなみに 進出なら 決定から操業まで 21か月が 目安だに。',
+    skills:['evisa','yobou','nittei','mail'] },
+  { nm:'セカイジョウセイ', short:'世界情勢', sp:'dragon', hp:110, weak:'yakusoku',
+    secret:true, gauge:'うず', expnm:'たいせい',
+    head:'── 最終ラウンド：変わりゆく世界情勢 ──',
+    pre:[
+      ['sys','── 11月。すべての関門を越えた、木曜日の夜。いつもの練習場。'],
+      ['','岩田「──速報。国債金利、また 上がったってよ」'],
+      ['bad','……夜空が うずを巻き、金利と 為替と 関税が、ひとつに 固まっていく──！'],
+      ['','「ワシは 世界情勢。変わりゆくもの。誰にも 倒せぬもの」']
+    ],
+    prices:[[24,6,3],[22,15,0],[20,25,-9],[17,42,-23]],
+    say:'「金利を上げるも ワシ。円を安くするも ワシ。──さあ、おまえたちの経営は、ワシに振り回されず 立っていられるか」',
+    guchi:'ミヤカワ「世界情勢に 文句言っても しょんないだけどね。……いや、文句ぐらい 言わせてくれや。こっちは 見積もり一枚で 戦っとるだで」',
+    hit:'「……ほう。ワシが どう吹いても、折れん柱が あるな」',
+    guardline:'（うずは 吹き続けている。……だが、こちらの足元は 揺れていない）',
+    exp:30, win:'ドラゴンは 翼を たたんだ！',
+    fact:'金利も 為替も 関税も、自分では 動かせん。動かせるのは 自分の段取りと あらりだけ。──だで 木曜日に集まって、腕を磨いとるだに。',
+    skills:['kinri3','enyasu','kanzei','sokuho','jousei'] }
+];
+
+var ATTR_NM = {arari:'あらり第一（稼ぐ力）', roic:'ＲＯＩＣ経営', ippon:'一本締め',
+                kunren:'約束の訓練', consul:'コンサル活用', yakusoku:'木曜日の約束',
+                kuriage:'繰り上げ返済', genka:'原価計算', cash:'現預金の把握',
+                neage:'値上げのお願い', kaizen:'改善提案', open:'開示',
+                settai:'接待ゴルフ', ketsudan:'社長の決断'};
+
+/* ---------- 仲間の助太刀（勝手に出る） ---------- */
+var ALLIES = [
+  {who:'岩田',   nm:'スキーのストックで 一突き！', pw:[11,16],
+   t:'（秋でも 持ち歩いとる。誰も 理由は 聞かない）'},
+  {who:'高林',   nm:'ＤＪスクラッチ攻撃！',        pw:[11,16],
+   t:'（キュキュッ。季節が変わっても、妙な説得力）'},
+  {who:'佐藤',   nm:'しずかな 詰め',               pw:[9,14],
+   t:'（過去トラの資料を、そっと 差し出しただけ）'}
+];
+/* お祝いラウンド専用の 助太刀（今作は出番なし・エンジン互換のため残す） */
+var ALLIES_CELE = [
+  {who:'岩田', nm:'クラッカーを ならした！',        pw:[8,12],
+   t:'（パァン。紙テープが 天井まで 飛んだ）'},
+  {who:'高林', nm:'ハッピーバースデーを 歌った！',  pw:[8,12],
+   t:'（音程は ともかく、気持ちは 入っとる）'},
+  {who:'佐藤', nm:'そっと 花を 一本 足した',        pw:[7,11],
+   t:'（何も言わずに、いちばん いい席を ゆずる）'}
+];
+
+/* =========================================================================
+   状態
+   ========================================================================= */
+var G=null;
+function newGame(){
+  return {ei:0, ehp:ENEMIES[0].hp, ara:TUNE.ARA0, mp:TUNE.MP0,
+          q:[], mode:'msg', sub:null, over:false, guard:false, soft:0,
+          nige:0, sponge:0, crit:0, settai:0, yasu:0, used:{}, gused:{}, tanka:[],
+          help:0, kaigai:false, ruler:0, ally:0, boost:0, gift:'', araRank:null, form:0,
+          jime:'', exp:0, lv:1, mpmax:TUNE.MP0, showEnemy:false};
+}
+function el(id){ return document.getElementById(id); }
+function say(l){ for(var i=0;i<l.length;i++) G.q.push(l[i]); }
+function rnd(a,b){ return a+Math.floor(Math.random()*(b-a+1)); }
+/* 関門の数（番外ラウンドは 数えない）。文章中の「◯連戦」の出どころ */
+function nProcAll(){
+  var n=0,i; for(i=0;i<ENEMIES.length;i++) if(!ENEMIES[i].cele) n++; return n;
+}
+/* 舞台名を つないだ列（？？？の 隠しラウンドは 出さない） */
+function procList(sep){
+  var a=[],i; for(i=0;i<ENEMIES.length;i++) if(!ENEMIES[i].cele && !ENEMIES[i].secret) a.push(ENEMIES[i].short);
+  return a.join(sep||'・');
+}
+
+/* =========================================================================
+   画面
+   ========================================================================= */
+function flush(){
+  var t=el('txt'); if(!t) return;
+  t.innerHTML='';
+  var n=0;
+  while(G.q.length && n<5){
+    if(G.q[0][0].indexOf('__')===0) break;
+    var L=G.q.shift();
+    var p=document.createElement('p'); p.className=L[0]||''; p.textContent=L[1];
+    t.appendChild(p); n++;
+  }
+  var nx=el('nx'); if(nx) nx.className=G.q.length?'on':'';
+  var c=el('cmd');
+  if(c) c.className='win'+((G.q.length||(G.mode!=='cmd'&&G.mode!=='sub'))?' off':'')
+                     +((G.mode==='sub'&&G.sub==='spell')?' sp':'');
+}
+function render(){
+  var E=ENEMIES[Math.min(G.ei,ENEMIES.length-1)];
+  var s=el('stat');
+  if(s){
+    var gnm=E.gauge||'なっとく';
+    var gv=E.cele?Math.max(0,E.hp-Math.max(0,G.ehp)):Math.max(0,G.ehp);
+    s.innerHTML='<div>ミヤカワ</div>'
+     +'<div class="'+(G.ara<=35?'low':'')+'">あらり<span class="v">'+Math.max(0,G.ara)+'</span></div>'
+     +'<div>こんきょ<span class="v">'+Math.max(0,G.mp)+'</span></div>'
+     +'<div style="color:'+(E.cele?'#ffd24a':'#9a9a9a')+'">'+gnm+'<span class="v">'+gv+'</span></div>'
+     +(G.help?'<div style="color:#ff8a7a">応援<span class="v">'+(G.help===1?'カチョウ':'カチョウ+ブチョウ')+'</span></div>':'');
+  }
+  var ch=el('chain');
+  if(ch){
+    var h='<div style="color:#9a9a9a">あきのじん</div>';
+    for(var i=0;i<ENEMIES.length;i++){
+      var cls=(i<G.ei)?'dn':((i===G.ei&&!G.over)?'on':'');
+      var snm=(ENEMIES[i].secret && i>G.ei)?'？？？':ENEMIES[i].short;
+      h+='<div class="'+cls+'">'+(i<G.ei?'✓':'・')+snm+'</div>';
+    }
+    ch.innerHTML=h;
+  }
+  if(FX.mode!=='die' && FX.mode!=='cele') CUR=(G.over||!G.showEnemy)?null:E;
+  drawScene();
+  renderCmd();
+}
+function renderCmd(){
+  var c=el('cmd'); if(!c) return;
+  var h='',i,E=ENEMIES[Math.min(G.ei,ENEMIES.length-1)];
+  if(G.mode==='sub' && G.sub==='price'){
+    if(E.presents){
+      for(i=0;i<E.presents.length;i++){
+        var Pz=E.presents[i];
+        h+='<div class="it'+(Pz.wide?' wide':'')+'" data-k="p" data-i="'+i+'">'+Pz.nm
+          +'<span class="c">'+Pz.ara+'</span></div>';
+      }
+    }else{
+      var lab=['強気','適正','ゆずる','安売り'];
+      for(i=0;i<E.prices.length;i++){
+        h+='<div class="it" data-k="p" data-i="'+i+'">¥'+E.prices[i][0]
+          +'<span class="c">'+lab[i]+'</span></div>';
+      }
+    }
+    h+='<div class="it wide" data-k="back">もどる</div>';
+  }else if(G.mode==='sub' && G.sub==='spell'){
+    for(i=0;i<SPELLS.length;i++){
+      var S=SPELLS[i];
+      if(S.only!==undefined && S.only!==G.ei) continue;   // ご当地の技は その舞台でだけ 現れる
+      var no=(G.mp<S.mp || (S.once&&G.used[S.nm]))?' no':'';
+      h+='<div class="it'+no+'" data-k="s" data-i="'+i+'">'+S.nm+'<span class="c">'+S.mp+'</span></div>';
+    }
+    h+='<div class="it" data-k="back">もどる</div>';
+  }else{
+    h+='<div class="it" data-k="price">'+(E.cmd||'みつもり')+'</div>';
+    h+='<div class="it" data-k="guard">だんまり</div>';
+    h+='<div class="it" data-k="spell">じゅもん</div>';
+    h+='<div class="it" data-k="nige">にげる<span class="c">'+(TUNE.NIGE-G.nige)+'</span></div>';
+  }
+  c.innerHTML=h;
+  c.className='win'+((G.q.length||(G.mode!=='cmd'&&G.mode!=='sub'))?' off':'')
+                   +((G.mode==='sub'&&G.sub==='spell')?' sp':'');
+  var its=c.querySelectorAll('.it');
+  for(i=0;i<its.length;i++){
+    (function(e){
+      e.onclick=function(){
+        var k=e.getAttribute('data-k'), idx=parseInt(e.getAttribute('data-i'),10);
+        if(k==='back'){ G.mode='cmd'; G.sub=null; renderCmd(); return; }
+        if(k==='price'){ G.sub='price'; G.mode='sub'; renderCmd(); return; }
+        if(k==='spell'){ G.sub='spell'; G.mode='sub'; renderCmd(); return; }
+        if(k==='p') doAction('price',idx);
+        else if(k==='s') doAction('spell',idx);
+        else doAction(k,0);
+      };
+    })(its[i]);
+  }
+}
+
+/* =========================================================================
+   戦闘
+   ========================================================================= */
+function startBattle(){
+  var E=ENEMIES[G.ei];
+  E.nm0=E.nm0||E.nm; E.nm=E.nm0; G.form=0;       // 変身する相手も、再戦時は 元の姿から
+  G.ehp=E.hp; G.guard=false; G.soft=0; G.used={}; G.help=0;
+  G.showEnemy=true; CUR=E; FX.mode=''; G.boost=0; fxIn();
+  var op=[['sys',E.head||('── 第'+(G.ei+1)+'ラウンド：'+E.short+' ──')]];
+  if(E.pre) op=op.concat(E.pre);                 // 登場前の 演出
+  op.push([E.cele?'good':'bad',E.nm+' が あらわれた！'],
+          ['',E.say],
+          ['sys',E.guchi],
+          ['sys','（'+(E.weakNote||('弱点：'+ATTR_NM[E.weak]))+'）']);
+  say(op);
+  G.mode='cmd'; G.sub=null;
+  render(); flush();
+}
+
+function doAction(kind, idx){
+  if(G.over || G.q.length) return;
+  if(G.mode!=='cmd' && G.mode!=='sub') return;
+  var E=ENEMIES[G.ei], dmg=0, weak=false, g=E.gauge||'なっとく';
+  G.guard=false;
+  G.mode='cmd'; G.sub=null;
+
+  if(kind==='price' && E.presents){
+    var Pz=E.presents[idx];
+    G.gift=Pz.nm;
+    dmg=Pz.dmg; G.ara+=Pz.ara;
+    say([['yen','ミヤカワの 『'+Pz.nm+'』！'],['',Pz.t],['good',Pz.r]]);
+    if(Pz.ara<0) say([['sys','（あらりが '+(-Pz.ara)+' 飛んだ。……つきあいとは そういうもんだら）']]);
+
+  }else if(kind==='price'){
+    var P=E.prices[idx];
+    G.tanka[G.ei]=P[0];
+    dmg=P[1]; G.ara+=P[2];
+    say([['yen','ミヤカワは 単価 ¥'+P[0]+' を 提示した！']]);
+    if(P[2]<=-15){ G.yasu++; say([['bad','── 安い。安すぎる。あらりが '+(-P[2])+' 消し飛んだ。']]); }
+    else if(P[2]<0){ say([['bad','── あらりが '+(-P[2])+' 削れた。']]); }
+    else if(idx===0){ say([['sys','── 強気だ。相手の眉が 動いた。']]); G.soft=-1; }
+
+  }else if(kind==='spell'){
+    var S=SPELLS[idx];
+    if(G.mp<S.mp) return;
+    if(S.only!==undefined && S.only!==G.ei) return;
+    if(S.once && (G.used[S.nm]||G.gused[S.nm])) return;
+    G.mp-=S.mp;
+    if(S.once){ G.used[S.nm]=true; if(S.attr==='ruler'||S.attr==='kaigai') G.gused[S.nm]=true; }
+    dmg=rnd(S.pw[0],S.pw[1]);
+    weak=(S.attr===E.weak);
+    say([['','ミヤカワは 「'+S.nm+'」を となえた！'],['',S.t],['sys',S.e]]);
+    if(S.soft){ G.soft=S.soft; G.settai++; }
+    if(S.mpback){ G.mp=Math.min(G.mpmax,G.mp+S.mpback);
+      say([['good','こんきょが '+S.mpback+' もどった。']]); }
+    if(S.attr==='ruler'){
+      G.ruler++;
+      if(G.help>0){ G.help--; say([['good','応援に来ていた 上役が、辞令とともに 消えた！']]); }
+      else say([['good','担当の背後から、辞令の気配が した。']]);
+      G.soft=Math.max(G.soft,2);
+    }
+    if(S.attr==='kaigai'){
+      G.kaigai=true;
+      say([['good','── 以後、『ベトナムシフト』は 効かなくなった！']]);
+    }
+    if(S.ara){ G.ara+=S.ara;
+      say([[S.ara>0?'good':'bad','あらりが '+(S.ara>0?'+':'')+S.ara+'。']]); }
+
+  }else if(kind==='guard'){
+    G.guard=true;
+    say([['','ミヤカワは だんまりを 決めこんだ。'],
+         ['sys','沈黙が 場に 落ちる。値段の話は、先に しゃべった方が 損だ。']]);
+    G.mp=Math.min(G.mpmax,G.mp+3);
+    if(Math.random()<TUNE.TALK){
+      var d2=rnd(10,16); G.ehp-=d2;
+      say([['good',E.nm+(E.guardline||'「……で、いくらなら いけるだ」')],
+           ['dmg','── 相手が 先に しゃべった！　'+g+'が '+d2+' 動いた！']]);
+    }
+
+  }else if(kind==='nige'){
+    if(E.cele){
+      say([['','ミヤカワ「……いや、なんでもない」'],
+           ['sys','タカハシ「なんだら それ」　── こんきょが 5 もどった。']]);
+      G.mp=Math.min(G.mpmax,G.mp+5);
+      G.mode='cmd'; flush(); render(); return;
+    }
+    G.nige++;
+    say([['','ミヤカワ「……いったん 引いて、態勢を 立て直すだに」']]);
+    if(G.nige>=TUNE.NIGE){
+      say([['bad','──立て直してばかりで、秋が 終わってしまった。']]);
+      G.mode='msg'; G.q.push(['__lost','']); flush(); render(); return;
+    }
+    G.ehp=Math.min(E.hp,G.ehp+10); G.mp=Math.min(G.mpmax,G.mp+9);
+    say([['sys','一息ついて 作戦を 練り直した。こんきょ +9、相手の '+g+' +10。']]);
+    G.mode='cmd'; flush(); render(); return;
+  }
+
+  if(dmg>0){
+    if(weak) dmg=Math.round(dmg*TUNE.WEAK);
+    var crit=(Math.random()<TUNE.CRIT);
+    if(crit){ dmg=Math.round(dmg*1.6); G.crit++; }
+    G.ehp-=dmg;
+    fxHit(weak,crit);
+    if(crit) say([['crit',E.cele?'まっすぐ 届いた！':'根拠が ぐさりと 刺さった！']]);
+    if(weak) say([['dmg','── 効果は ばつぐんだ！']]);
+    say([['dmg',E.cele ? (E.nm+' の '+g+'が '+dmg+' あがった！')
+                       : (E.nm+' の '+g+' に '+dmg+' の ダメージ！')]]);
+    if(weak && G.ehp>0) say([['',E.hit]]);
+  }
+
+  if(G.ehp>0 && dmg>0 && Math.random()<TUNE.ALLY){
+    var AL=E.cele?ALLIES_CELE:ALLIES;
+    var A=AL[Math.floor(Math.random()*AL.length)];
+    var ad=rnd(A.pw[0],A.pw[1]); G.ehp-=ad; G.ally++;
+    say([['good',A.who+' の 『'+A.nm+'』'],['sys',A.t],
+         ['dmg',E.cele ? (E.nm+' の '+g+'が '+ad+' あがった！')
+                       : (E.nm+' に '+ad+' の ダメージ！')]]);
+  }
+
+  /* 変身チェック（エンジン互換・今作は未使用）。数値は一切 変えない＝バランス維持 */
+  if(E.forms && G.ehp>0){
+    while(G.form<E.forms.length && G.ehp<=Math.round(E.hp*E.forms[G.form].at)){
+      var F=E.forms[G.form]; G.form++;
+      E.nm=F.nm;
+      say(F.lines);
+    }
+  }
+
+  if(E.cele && G.ara<1) G.ara=1;   // お祝いラウンドでは 負けない
+
+  if(G.ehp<=0){
+    defeat(E);
+    flush(); render(); return;
+  }
+    enemyTurn(E);
+  flush(); render();
+}
+
+function defeat(E){
+  G.showEnemy=false;
+  var g=E.gauge||'なっとく';
+  if(E.cele){
+    fxCele(E);
+    say([['dmg','── '+g+'が あふれた！'],
+         ['crit','＊　'+g+' MAX！　＊'],
+         ['good',E.win]]);
+  }else{
+    fxDie(E);
+    say([['dmg','── '+g+'が 0 に なった！'],
+         ['crit','＊　'+E.nm+' は くずれおちた！　＊'],
+         ['good',E.nm+' を 説き伏せた！'],
+         ['good','── '+E.win]]);
+  }
+  var back=Math.min(7,G.mpmax-G.mp);
+  G.mp=Math.min(G.mpmax,G.mp+7);
+  G.exp+=E.exp;
+  say([['sys','──────────────'],
+       ['dmg','ミヤカワたちは '+(E.expnm||'しんよう')+' '+E.exp+' を かくとくした！'],
+       ['good','こんきょが '+back+' もどった。']]);
+  if(E.fact) say([['sys','── 経営のちしき：'+E.fact]]);
+  /* 6連戦ぶんの しんよう：10→22→38→58→82→112。
+     Lv2=第2戦後 / Lv3=第3戦後 / Lv4=第4戦後 / Lv5=第5戦後 */
+  var need=[0,20,36,56,80,999][G.lv];
+  if(G.exp>=need && G.lv<5){
+    G.lv++;
+    G.mpmax+=5; G.mp=G.mpmax;
+    G.ara=Math.min(TUNE.ARA0,G.ara+TUNE.LVUP);
+    say([['crit','＊　レベルが あがった！　ミヤカワは Lv'+G.lv+' に なった！　＊'],
+         ['good','こんきょの さいだいちが 5 ふえた！　（'+G.mpmax+'）'],
+         ['good','あらりが '+TUNE.LVUP+' もどった！']]);
+    if(G.lv===2) say([['sys','── 数字に 強くなってきた。電卓を 見ずに 打てる。']]);
+    if(G.lv===3) say([['sys','── 銀行の言う「金利」と 自分の「あらり」が、頭の中で つながった。']]);
+    if(G.lv===4) say([['sys','── スコアカードに、正直な数字を 書けるように なった。']]);
+    if(G.lv===5) say([['sys','── もう、どんな ニュース速報にも 動じない。……たぶん。']]);
+  }
+  /* ランク判定は 勝負が終わった時点の あらりで見る */
+  if(!E.cele) G.araRank=G.ara;
+  G.ei++; G.mode='msg';
+  /* 勝ち残ったのに あらりが 残っていない＝赤字。先へは 進ませない */
+  if(!E.cele && G.ara<=0){ G.q.push(['__over','']); return; }
+  if(E.jime) G.q.push(['__jime','']);   // 宴会の最後は 三本締めミニゲーム
+  G.q.push([(G.ei>=ENEMIES.length)?'__end':'__next','']);
+}
+
+function enemyTurn(E){
+  var g=E.gauge||'なっとく';
+  if(!E.cele && Math.random()<TUNE.SPONGE){
+    var big=(Math.random()<0.45);
+    if(big){
+      var m2=rnd(6,9); G.mp=Math.max(0,G.mp-m2);
+      say([['sp','──スマホが 鳴った。現場からだ。'],
+           ['sp','留守番の声「社長、機械が 止まりました。……どうしましょう」'],
+           ['sp','（頭が 一気に 現場へ 引き戻される）こんきょを '+m2+' うしなった！']]);
+    }else{
+      G.mp=Math.max(0,G.mp-3);
+      say([['sp','──スマホが 鳴った。「あの件、どうなってますか」'],
+           ['sp','── どこまでも 追いかけてくる。こんきょ -3。']]);
+    }
+    G.sponge++;
+  }else{
+    var key=E.skills[Math.floor(Math.random()*E.skills.length)];
+    var S=SKILLS[key];
+    if(key==='betonamu' && G.kaigai){
+      say([['good',E.nm+' は ベトナムシフトを 言いかけて、やめた。'],
+           ['good','「……そちら、タイに 工場 あるんでしたね」']]);
+      G.mode='cmd'; return;
+    }
+    say([[E.cele?'':'bad',E.nm+' の 『'+S.nm+'』！'],['',S.line]]);
+    if(S.call){
+      if(G.help<2){
+        G.help++;
+        say([['bad',(G.help===1?'カチョウ':'ブチョウ')+' が あらわれた！'],
+             ['bad','── 相手の 押しが 強くなった。']]);
+        G.ehp=Math.min(E.hp,G.ehp+6);
+        say([['bad',g+'が 6 回復！']]);
+      }else{
+        say([['sys','……これ以上 呼べる人が いなかった。']]);
+      }
+    }else{
+      var d=rnd(S.dmg[0],S.dmg[1]);
+      d=Math.round(d*TUNE.EDMG);
+      d=Math.round(d*(1+TUNE.HELP*G.help));
+      if(G.soft>0){ d=Math.round(d*0.5); G.soft--; }
+      else if(G.soft<0){ d=Math.round(d*1.3); G.soft=0; }
+      if(G.guard){ d=Math.round(d*0.45); }
+      if(d>0){ G.ara-=d; fxAtk(); say([['bad','あらりを '+d+' うしなった！']]); }
+      if(S.mp){ var m=G.guard?Math.round(S.mp/2):S.mp; G.mp=Math.max(0,G.mp-m);
+        say([['bad','こんきょを '+m+' うしなった！']]); }
+      if(S.heal){ G.ehp=Math.min(E.hp,G.ehp+S.heal);
+        say([['bad',E.cele ? ('── 目利きに 見抜かれた。'+g+'が '+S.heal+' さがった。')
+                           : ('── '+g+'が '+S.heal+' 回復した！')]]); }
+      if(S.araback){ G.ara=Math.min(TUNE.ARA0,G.ara+S.araback);
+        say([['good','── うまい。……あらりが '+S.araback+' もどった。']]); }
+      if(S.boost){ G.boost=1;
+        say([['good','── つぎの 一手が、よけいに 効きそうだ。']]); }
+    }
+  }
+  if(E.cele){ if(G.ara<1) G.ara=1; G.mode='cmd'; return; }
+  if(G.ara<=0){ G.mode='msg'; G.q.push(['__over','']); return; }
+  if(G.ara<=30) say([['bad','── あらりが あぶない！']]);
+  G.mode='cmd';
+}
+
+function advance(){
+  if(!G.q.length) return;
+  var h=G.q[0];
+  if(h[0]==='__jime'){ G.q.shift();
+    if(RAF && cx && typeof performance!=='undefined'){ startJime(); return; }
+    advance(); return;   // 自動テスト環境では 締めを スキップ
+  }
+  if(h[0]==='__next'){ G.q.shift(); startBattle(); return; }
+  if(h[0]==='__end'){  G.q.shift(); ending('win');  return; }
+  if(h[0]==='__over'){ G.q.shift(); ending('aka');  return; }
+  if(h[0]==='__lost'){ G.q.shift(); ending('lost'); return; }
+  flush(); render();
+}
+
+/* =========================================================================
+   結末
+   ========================================================================= */
+function ending(kind){
+  G.over=true; G.mode='end';
+  var rank,mes,win=(kind==='win');
+  var ra=(G.araRank===null||G.araRank===undefined)?G.ara:G.araRank;
+  if(kind==='aka'){
+    rank='あ か じ 経 営';
+    mes='勝ち残りは した。だが 値引きと 出費で、秋の陣の あらりは もう 無い。'
+       +'……なにと 戦っとっただ、と 電卓を 見つめる。';
+  }else if(kind==='lost'){
+    rank='立 往 生';
+    mes='立て直してばかりで、秋が 終わってしまった。'
+       +'スコアカードも 見積書も、白いまま 冬が 来る。';
+  }else if(ra>=TUNE.RANK[0]){ rank='天 下 布 武';
+    mes='金利にも あいみつにも 世界情勢にも、あらりを 1円も 渡さなかった。──完璧な 秋の陣だ。'; }
+  else if(ra>=TUNE.RANK[1]){ rank='惣 無 事 令';
+    mes='勝ち越しだ。多少 削られたが、胸を張って 冬を 迎えられる。'; }
+  else if(ra>=TUNE.RANK[2]){ rank='一 国 一 城';
+    mes='乗り切りは した。ただ 宴会と 旅費を 引くと、うっすら 汗の出る 薄さだ。'; }
+  else{ rank='薄 氷';
+    mes='……生き残った。それだけで 上出来、という 秋も ある。'; }
+
+  var h='';
+  h+='<h2>'+(win?'秋の陣、完遂':(kind==='lost'?'秋の陣、中断':'秋の陣、終了'))+'</h2>';
+  h+='<div class="rank">'+rank+'</div>';
+  h+='<table>';
+  var nProc=nProcAll();
+  h+='<tr><td>越えた関門</td><td>'+Math.min(G.ei,nProc)+' / '+nProc+'</td></tr>';
+  if(G.gift) h+='<tr><td>秋の きめての一手</td><td>'+G.gift+'</td></tr>';
+  h+='<tr><td>ミヤカワ</td><td>Lv'+G.lv+'（しんよう '+G.exp+'）</td></tr>';
+  h+='<tr><td>残ったあらり</td><td>'+Math.max(0,G.ara)+' / '+TUNE.ARA0+'</td></tr>';
+  h+='<tr><td>残ったこんきょ</td><td>'+Math.max(0,G.mp)+' / '+G.mpmax+'</td></tr>';
+  h+='<tr><td>提示した単価</td><td>'+(G.tanka.filter(function(x){return x;}).map(function(x){return '¥'+x;}).join(' / ')||'─')+'</td></tr>';
+  h+='<tr><td>根拠が刺さった回数</td><td>'+G.crit+' 回</td></tr>';
+  h+='<tr><td>安売りした回数</td><td>'+G.yasu+' 回</td></tr>';
+  h+='<tr><td>接待した回数</td><td>'+G.settai+' 回</td></tr>';
+  if(G.jime) h+='<tr><td>三本締め</td><td>'+G.jime+'</td></tr>';
+  h+='<tr><td>仲間の助太刀</td><td>'+G.ally+' 回</td></tr>';
+  h+='<tr><td>立て直した回数</td><td>'+G.nige+' 回</td></tr>';
+  h+='<tr><td>るすばん電話の追撃</td><td>'+G.sponge+' 回</td></tr>';
+  h+='</table>';
+  h+='<p>'+mes+'</p>';
+
+  if(win){
+    h+='<p class="sp">──ドラゴンは うずを ほどいて、夜空に 溶けはじめた。</p>';
+    h+='<p>セカイジョウセイ「……ワシを 倒せる者など、おらん。ワシは あすも 吹く。──だが、ワシに 振り回されぬ者は、たまに おる。おまえたちの ことだ」</p>';
+    h+='<p class="sp">──足元に、黄色い着ぐるみが ちょこんと 座っていた。</p>';
+    h+='<p class="sp">スポンジマン「金利、ぼくのせいじゃ ないからね」</p>';
+    h+='<p class="sp">（──こんきょを 吸うものは、世界情勢の陰にも おる。<b>生産性悪化の権化</b>は、金利より しぶとい。）</p>';
+    h+='<p>佐藤「──で、12月は インドだら」</p>';
+    h+='<p>ミヤカワ「その前に しょちょうとの 再戦と、11月の 中間の数字と……」</p>';
+    h+='<p>岩田「戦いのステージは、果てしなく 続くねえ」</p>';
+    h+='<p>高林「──だで、木曜日が あるだよ」</p>';
+    h+='<p style="text-align:center;color:#7fd6a2;margin-top:10px">そして一行は、また 木曜日の練習場へ 向かった。──全員が 100を叩かない、その日まで。</p>';
+  }
+  h+='<p style="text-align:center;color:#ffe14a;margin-top:10px">— 見積もりクエスト＜ＲＯＩＣバトルロワイヤル＞・完 —</p>';
+  h+='<button class="big" id="ag">もういちど</button>';
+  var vi=el('vin'), vl=el('veil');
+  if(vi&&vl){ vi.innerHTML=h; vl.classList.remove('hide');
+    var b=el('ag'); if(b) b.onclick=start; }
+}
+
+/* =========================================================================
+   敵の絵と 演出（320×168 ドット絵）
+   ------------------------------------------------------------------------
+   FX.mode : ''(通常) / 'hit'(こちらの一撃) / 'atk'(敵の攻撃) /
+             'die'(撃破＝点滅→砕け散る→白フラッシュ) / 'in'(敵の登場)
+   ========================================================================= */
+var cv=null,cx=null,CUR=null;
+var FX={mode:'',t:0,dur:0,shake:0,flash:0,tint:null,parts:[],big:false};
+var RAF=(typeof requestAnimationFrame==='function')?requestAnimationFrame:null;
+
+function px(x,y,w,h,c){ cx.fillStyle=c; cx.fillRect(x,y,w,h); }
+
+/* --- 演出の起動 --- */
+function fxHit(weak,crit){
+  FX.mode='hit'; FX.t=0; FX.dur=crit?20:13; FX.shake=crit?9:(weak?7:4);
+  FX.flash=crit?0.55:(weak?0.4:0.18); FX.tint=crit?'#ff9a4a':(weak?'#ffe14a':'#ffffff');
+  FX.big=!!crit; startFx();
+}
+function fxAtk(){
+  FX.mode='atk'; FX.t=0; FX.dur=16; FX.shake=8; FX.flash=0.42; FX.tint='#ff3a2a'; startFx();
+}
+function fxIn(){
+  FX.mode='in'; FX.t=0; FX.dur=26; FX.shake=0; FX.flash=0; FX.tint=null; startFx();
+}
+function fxDie(E){
+  CUR=E; FX.mode='die'; FX.t=0; FX.dur=104; FX.shake=5; FX.flash=0; FX.tint='#ffffff';
+  FX.parts=makeParts(E); startFx();
+}
+/* 撃破ではなく お祝い。紙吹雪と ハートが 舞い上がる（今作は出番なし・互換） */
+function fxCele(E){
+  CUR=E; FX.mode='cele'; FX.t=0; FX.dur=132; FX.shake=0; FX.flash=0; FX.tint='#ffe14a';
+  FX.parts=makeCele(); startFx();
+}
+function makeCele(){
+  var pal=['#ffd24a','#ff8ab0','#7fd6a2','#8ad0ff','#ffffff','#ff5a7a','#ffa8d0'], a=[], i;
+  for(i=0;i<72;i++){
+    a.push({x:14+Math.random()*292, y:150+Math.random()*46,
+            vx:(Math.random()*2-1)*0.7, vy:-(1.0+Math.random()*2.3),
+            s:3+Math.floor(Math.random()*4),
+            c:pal[i%pal.length], h:(i%4===0), w:Math.random()*6.28});
+  }
+  return a;
+}
+function drawCele(){
+  var i,p;
+  for(i=0;i<FX.parts.length;i++){
+    p=FX.parts[i];
+    p.w+=0.16; p.x+=p.vx+Math.sin(p.w)*0.7; p.y+=p.vy; p.vy+=0.008;
+    var al=Math.min(1,Math.max(0,1-(FX.t-84)/48));
+    if(al<=0) continue;
+    cx.save(); cx.globalAlpha=al;
+    if(p.h) drawHeart(Math.round(p.x),Math.round(p.y),Math.max(1,Math.round(p.s/2)),p.c);
+    else px(Math.round(p.x),Math.round(p.y),Math.round(p.s),Math.round(p.s*1.4),p.c);
+    cx.restore();
+  }
+}
+function drawHeart(x,y,u,c){
+  px(x+u,   y,     2*u, u, c); px(x+4*u, y,     2*u, u, c);
+  px(x,     y+u,   7*u, 2*u, c);
+  px(x+u,   y+3*u, 5*u, u, c);
+  px(x+2*u, y+4*u, 3*u, u, c);
+  px(x+3*u, y+5*u, u,   u, c);
+}
+function makeParts(E){
+  var pal=PALETTE[E.sp]||PALETTE.kinri, a=[],i;
+  for(i=0;i<74;i++){
+    var ang=Math.random()*Math.PI*2, sp=1.6+Math.random()*4.4;
+    a.push({x:160+(Math.random()*116-58), y:74+(Math.random()*104-52),
+            vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp-3.4,
+            s:4+Math.floor(Math.random()*8),
+            c:pal[Math.floor(Math.random()*pal.length)], r:Math.random()*0.5-0.25});
+  }
+  return a;
+}
+function loop(){
+  drawScene();
+  if(FX.mode && FX.t<FX.dur){
+    FX.t++;
+    if(RAF){ FX.running=true; RAF(loop); }
+    else { FX.t=FX.dur; FX.mode=''; FX.running=false; }
+  }else if(FX.mode){
+    if(FX.mode==='die'||FX.mode==='cele') CUR=null;   // 出番の済んだ相手は 引っこむ
+    FX.mode=''; FX.parts=[]; FX.running=false; drawScene();
+  }else{ FX.running=false; }
+}
+function startFx(){ if(!FX.running) loop(); }   // 演出の二重回しを 防ぐ
+
+/* --- 画面 --- */
+function drawScene(){
+  if(!cx) return;
+  var E=CUR;
+  cx.save();
+  px(0,0,320,168,'#000');
+
+  var sh=0;
+  if(FX.shake && FX.mode){
+    var k=1-(FX.t/FX.dur);
+    sh=Math.round((Math.random()*2-1)*FX.shake*k);
+    cx.translate(sh, (FX.mode==='atk')?Math.round((Math.random()*2-1)*FX.shake*k):0);
+  }
+  px(-20,142,360,2,'#333');
+
+  if(E){
+    if(FX.mode==='die'){
+      if(FX.t<34){                                   // ① 点滅しながら 揺れる
+        if(Math.floor(FX.t/3)%2===0) drawBody(E);
+        else { drawBody(E); tintSprite('#ffffff',0.85); }
+      }else{                                         // ② 砕けて 飛び散る
+        drawParts();
+      }
+    }else if(FX.mode==='cele'){
+      drawBody(E);
+      drawCele();
+    }else if(FX.mode==='in'){                        // 登場：4回 点滅
+      if(Math.floor(FX.t/4)%2===0) drawBody(E);
+    }else{
+      drawBody(E);
+      if(FX.mode==='hit' && FX.t<7) tintSprite(FX.tint, FX.big?0.9:0.65);
+    }
+  }
+  cx.restore();
+
+  /* 全画面フラッシュ */
+  var f=0;
+  if(FX.mode==='hit'||FX.mode==='atk') f=FX.flash*(1-FX.t/FX.dur);
+  if(FX.mode==='die'){
+    if(FX.t>=30&&FX.t<40) f=1.0-(FX.t-30)/10*0.35;   // 砕ける瞬間の 白フラッシュ
+    else if(FX.t>=40)     f=Math.max(0,0.4-(FX.t-40)/60);
+  }
+  if(FX.mode==='cele'){
+    if(FX.t<26) f=0.30*(1-FX.t/26);
+  }
+  if(f>0){
+    cx.save(); cx.globalAlpha=Math.min(1,f);
+    cx.fillStyle=(FX.mode==='atk')?'#ff3a2a':((FX.mode==='cele')?'#ffe6a0':'#ffffff');
+    cx.fillRect(0,0,320,168); cx.restore();
+  }
+
+  if(E && !(FX.mode==='die'&&FX.t>=34)){
+    cx.fillStyle='#9a9a9a'; cx.font='11px "MS Gothic", monospace';
+    cx.fillText(E.nm, 8, 162);
+  }
+  if(FX.mode==='die' && FX.t>=44){
+    cx.fillStyle='#ffe14a'; cx.font='13px "MS Gothic", monospace';
+    cx.fillText((CUR&&CUR.gauge?CUR.gauge:'なっとく')+' 0 ！', 108, 88);
+  }
+  if(FX.mode==='cele' && FX.t>=20){
+    cx.fillStyle='#ffe14a'; cx.font='13px "MS Gothic", monospace';
+    cx.fillText('＊ よろこび MAX！ ＊', 88, 26);
+  }
+}
+function tintSprite(c,a){                            // 描いた絵の上だけを 染める
+  cx.save(); cx.globalCompositeOperation='source-atop';
+  cx.globalAlpha=a; cx.fillStyle=c; cx.fillRect(0,0,320,168); cx.restore();
+}
+function drawParts(){
+  var i,p;
+  for(i=0;i<FX.parts.length;i++){
+    p=FX.parts[i];
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.24; p.s=Math.max(1,p.s-0.045);
+    var al=Math.max(0,1-(FX.t-34)/62);
+    if(al<=0) continue;
+    cx.save(); cx.globalAlpha=al; px(Math.round(p.x),Math.round(p.y),Math.round(p.s),Math.round(p.s),p.c); cx.restore();
+  }
+}
+
+/* --- 敵の姿 --- */
+function spark(x,y){ px(x+4,y,4,12,'#ffe14a'); px(x,y+4,12,4,'#ffe14a'); }
+function drawBody(E){
+  var X=160, Y=74, i;
+  if(E.sp==='kinri'){                       // キンリサンパー（金利3%の魔物・銀行員のすがた）
+    px(X-96,Y+20,20,4,'#5a5a66'); px(X-84,Y+4,20,4,'#5a5a66');     // うしろの金利グラフ（階段）
+    px(X-72,Y-12,20,4,'#5a5a66'); px(X-60,Y-28,20,4,'#5a5a66');
+    px(X-48,Y-44,20,4,'#ff5a4a');                                  // いちばん上だけ 赤い
+    px(X-34,Y-56,6,14,'#ff5a4a'); px(X-40,Y-50,18,6,'#ff5a4a');    // 上向きの矢印
+    px(X+44,Y-56,30,22,'#f0ece0');                                 // 「3%」の札
+    px(X+48,Y-52,6,14,'#c83a3a'); px(X+58,Y-52,5,5,'#c83a3a');     // ざっくりした 3%
+    px(X+58,Y-43,5,5,'#c83a3a'); px(X+64,Y-48,4,4,'#c83a3a');
+    px(X-16,Y-54,32,10,'#3a3a44');                                 // きっちりした髪
+    px(X-14,Y-46,28,24,'#f2cda2');                                 // 顔
+    px(X-12,Y-38,9,6,'#c8c8d0'); px(X+3,Y-38,9,6,'#c8c8d0');       // 銀ぶちめがね
+    px(X-3,Y-36,6,2,'#3a3a44');
+    px(X-4,Y-28,8,3,'#8a5a4a');                                    // ていねいな口
+    px(X-22,Y-22,44,42,'#2a3a54');                                 // かっちりしたスーツ
+    px(X-4,Y-22,8,14,'#ffffff'); px(X-3,Y-20,6,16,'#5a7a9a');      // シャツと 行員のネクタイ
+    px(X-32,Y-18,10,26,'#2a3a54'); px(X+22,Y-18,10,26,'#2a3a54');  // 腕
+    px(X-34,Y+8,12,8,'#f2cda2');                                   // 左手
+    px(X-48,Y+14,20,26,'#17171c'); px(X-45,Y+18,14,4,'#ffd24a');   // 黒いカバン（金具）
+    px(X+24,Y+8,12,8,'#f2cda2'); px(X+30,Y+2,18,24,'#f0ece0');     // 右手と 金利改定のお知らせ
+    px(X+33,Y+6,12,2,'#9a9a9a'); px(X+33,Y+11,12,2,'#9a9a9a'); px(X+33,Y+16,12,2,'#ff5a4a');
+    px(X-14,Y+20,12,22,'#1a2a3a'); px(X+2,Y+20,12,22,'#1a2a3a');   // 脚
+    px(X-16,Y+40,14,6,'#17171c'); px(X+2,Y+40,14,6,'#17171c');     // 革靴
+  }else if(E.sp==='aimitsu'){               // アイミツさんきょうだい（3社の相見積もり軍団）
+    px(X-14,Y-60,28,8,'#3a3a4a');                                  // ── 真ん中（長男・大きい）
+    px(X-12,Y-53,24,20,'#f2cda2');                                 // 顔
+    px(X-9,Y-47,6,3,'#2a1a12'); px(X+3,Y-47,6,3,'#2a1a12');        // ギラついた目
+    px(X-4,Y-38,8,3,'#8a3a3a');                                    // ニヤリ
+    px(X-20,Y-34,40,36,'#3a3a4a');                                 // スーツ
+    px(X-3,Y-34,6,12,'#c83a3a');                                   // 赤ネクタイ
+    px(X-30,Y-28,10,20,'#3a3a4a'); px(X+20,Y-28,10,20,'#3a3a4a');  // 腕
+    px(X-36,Y-10,12,8,'#f2cda2'); px(X+24,Y-10,12,8,'#f2cda2');    // 手
+    px(X+30,Y-22,18,26,'#f0ece0'); px(X+33,Y-18,12,2,'#c83a3a');   // 見積書（安値が 赤字で光る）
+    px(X+33,Y-13,12,2,'#9a9a9a'); px(X+33,Y-8,12,2,'#9a9a9a');
+    px(X-12,Y+2,10,20,'#2a2a38'); px(X+2,Y+2,10,20,'#2a2a38');     // 脚
+    px(X-14,Y+20,12,5,'#17171c'); px(X+2,Y+20,12,5,'#17171c');
+    px(X-84,Y-38,22,7,'#3a3a4a');                                  // ── 左（次男・小さめ）
+    px(X-82,Y-32,18,16,'#f2cda2');
+    px(X-79,Y-27,5,2,'#2a1a12'); px(X-70,Y-27,5,2,'#2a1a12');
+    px(X-88,Y-16,30,26,'#4a4a5a'); px(X-76,Y-16,5,9,'#5a8ad0');    // 青ネクタイ
+    px(X-94,Y-12,8,14,'#4a4a5a'); px(X-98,Y+2,10,7,'#f2cda2');
+    px(X-104,Y-8,16,22,'#f0ece0');                                 // 見積書
+    px(X-84,Y+10,8,14,'#2a2a38'); px(X-72,Y+10,8,14,'#2a2a38');
+    px(X+62,Y-38,22,7,'#3a3a4a');                                  // ── 右（三男・小さめ）
+    px(X+64,Y-32,18,16,'#f2cda2');
+    px(X+67,Y-27,5,2,'#2a1a12'); px(X+76,Y-27,5,2,'#2a1a12');
+    px(X+58,Y-16,30,26,'#4a4a5a'); px(X+71,Y-16,5,9,'#7fd6a2');    // 緑ネクタイ
+    px(X+88,Y-12,8,14,'#4a4a5a'); px(X+92,Y+2,10,7,'#f2cda2');
+    px(X+90,Y-8,16,22,'#f0ece0');                                  // 見積書
+    px(X+64,Y+10,8,14,'#2a2a38'); px(X+76,Y+10,8,14,'#2a2a38');
+    px(X-58,Y+30,116,4,'#5a3a1a');                                 // 会議テーブルの ふち
+  }else if(E.sp==='enkai'){                 // エンカイノヌシ（お疲れ様会の主・赤ら顔の長老）
+    px(X-92,Y-58,60,26,'#c83a3a');                                 // 「祝」の垂れ幕
+    px(X-86,Y-52,10,14,'#ffffff'); px(X-70,Y-52,10,14,'#ffffff'); px(X-54,Y-52,10,14,'#ffffff');
+    px(X+48,Y-58,26,40,'#ffd24a'); px(X+54,Y-64,14,8,'#c83a3a');   // ビール瓶ケースと 提灯
+    px(X-14,Y-58,28,8,'#c8c8d0');                                  // 白髪
+    px(X-18,Y-52,8,10,'#c8c8d0'); px(X+10,Y-52,8,10,'#c8c8d0');
+    px(X-14,Y-50,28,26,'#f2a08a');                                 // 赤ら顔
+    px(X-10,Y-42,8,3,'#2a1a12'); px(X+2,Y-42,8,3,'#2a1a12');       // ごきげんな目（─ ─）
+    px(X-14,Y-36,7,5,'#ff6a5a'); px(X+7,Y-36,7,5,'#ff6a5a');       // ほほ
+    px(X-6,Y-32,12,6,'#5a1408');                                   // 笑っとる口
+    px(X-24,Y-24,48,40,'#4a5a3a');                                 // 作業服っぽい上着（組合の重鎮）
+    px(X-6,Y-24,12,14,'#ffffff');                                  // シャツ
+    px(X-24,Y-24,10,6,'#ffd24a');                                  // 名誉バッジ
+    px(X-36,Y-26,12,20,'#4a5a3a'); px(X-40,Y-32,10,8,'#f2a08a');   // 左腕（瓶を持つ）
+    px(X-52,Y-46,12,26,'#5a3a1a'); px(X-50,Y-52,8,8,'#5a3a1a');    // ビール瓶
+    px(X+24,Y-18,16,10,'#4a5a3a'); px(X+40,Y-22,10,8,'#f2a08a');   // 右腕（グラスを すすめる）
+    px(X+50,Y-28,12,16,'#ffe14a'); px(X+50,Y-32,12,5,'#ffffff');   // なみなみのグラス
+    px(X-16,Y+16,12,20,'#3a4a2a'); px(X+4,Y+16,12,20,'#3a4a2a');   // 脚（座敷で あぐら気味）
+    px(X-18,Y+34,14,6,'#17171c'); px(X+4,Y+34,14,6,'#17171c');
+    px(X-70,Y+30,140,6,'#8a5a2a');                                 // 宴会場の長机
+    px(X-60,Y+22,16,8,'#ffe14a'); px(X-30,Y+24,12,6,'#f0ece0');    // 皿と グラス
+    px(X+34,Y+22,16,8,'#f0ece0');
+  }else if(E.sp==='shocho'){                // しょちょう（全身マーク＆ロナ・テーラーメードの新作）
+    px(X+62,Y-70,4,56,'#c8c8d0'); px(X+66,Y-70,20,12,'#ff5a4a');   // うしろのピンフラッグ
+    px(X-88,Y-6,24,44,'#17171c'); px(X-86,Y-14,20,10,'#17171c');   // ゴルフバッグ
+    px(X-84,Y-24,4,12,'#c8c8d0'); px(X-76,Y-28,4,16,'#c8c8d0');    // クラブたち
+    px(X-80,Y-20,4,8,'#ffd24a');
+    px(X-16,Y-60,32,10,'#17171c'); px(X-20,Y-54,40,6,'#17171c');   // 黒キャップ
+    px(X-8,Y-58,16,5,'#ffffff');                                   // キャップのロゴ
+    px(X-14,Y-48,28,22,'#f2cda2');                                 // 顔
+    px(X-12,Y-42,10,5,'#17171c'); px(X+2,Y-42,10,5,'#17171c');     // サングラス
+    px(X-2,Y-40,4,2,'#17171c');
+    px(X-4,Y-30,10,3,'#8a5a4a');                                   // 不敵な笑み
+    px(X-24,Y-26,48,36,'#17171c');                                 // 黒のウェア
+    px(X-20,Y-22,8,8,'#ffffff'); px(X+12,Y-22,8,8,'#ffffff');      // 派手な柄
+    px(X-6,Y-14,12,10,'#ffd24a');                                  // 金の紋章
+    px(X-34,Y-22,10,22,'#17171c'); px(X+24,Y-22,10,22,'#17171c');  // 腕
+    px(X-36,Y,10,8,'#f2cda2'); px(X+26,Y,10,8,'#f2cda2');          // 手
+    px(X+30,Y-52,6,54,'#c8c8d0');                                  // 新作ドライバーのシャフト
+    px(X+26,Y-64,22,14,'#8ad0ff'); px(X+30,Y-60,14,6,'#ffffff');   // ピカピカのヘッド
+    spark(X+50,Y-70);                                              // 新品の輝き
+    px(X-30,Y+4,14,10,'#c8c8d0'); px(X-27,Y+6,8,4,'#17171c');      // 腰の距離計
+    px(X-18,Y+10,16,26,'#ffffff'); px(X+2,Y+10,16,26,'#ffffff');   // 白パンツ
+    px(X-20,Y+34,16,6,'#ff5a4a'); px(X+4,Y+34,16,6,'#ff5a4a');     // 派手なシューズ
+    px(X-60,Y+40,140,4,'#4a7a3a');                                 // 芝
+    px(X-44,Y+34,8,8,'#ffffff'); px(X-42,Y+36,3,3,'#c8c8d0');      // ボール
+  }else if(E.sp==='yama'){                  // シサツケイカクノヤマ（段取り書類の山）
+    px(X+56,Y-62,26,8,'#c8c8d0'); px(X+64,Y-58,10,4,'#8ad0ff');    // 遠くの飛行機
+    px(X+50,Y-58,8,4,'#c8c8d0');
+    px(X-70,Y+26,140,16,'#f0ece0');                                // 書類の山（下段）
+    px(X-58,Y+12,116,16,'#e8e0d0');
+    px(X-44,Y-2,88,16,'#f0ece0');
+    px(X-32,Y-16,64,16,'#e8e0d0');
+    px(X-20,Y-30,40,16,'#f0ece0');
+    px(X-10,Y-42,20,14,'#e8e0d0');                                 // てっぺん
+    px(X-64,Y+30,20,3,'#9a9a9a'); px(X-30,Y+16,24,3,'#9a9a9a');    // 書類の行
+    px(X-20,Y+2,20,3,'#9a9a9a'); px(X-12,Y-12,18,3,'#9a9a9a');
+    px(X-6,Y-26,14,3,'#9a9a9a');
+    px(X-8,Y-56,16,12,'#2a5a8a'); px(X-5,Y-53,10,3,'#ffd24a');     // てっぺんのパスポート
+    px(X-52,Y-6,16,20,'#ff5a4a'); px(X-49,Y-2,10,3,'#ffffff');     // eビザの赤い付箋つき書類
+    px(X+30,Y+4,20,14,'#8ad0ff'); px(X+33,Y+8,14,3,'#ffffff');     // 航空券
+    px(X+46,Y+22,14,18,'#7fd6a2'); px(X+49,Y+26,8,3,'#ffffff');    // 予診票
+    px(X-76,Y+18,12,22,'#5a3a1a'); px(X-73,Y+14,6,6,'#c8c8d0');    // 倒れかけの スタンプ台とハンコ
+  }else{                                    // セカイジョウセイ（変わりゆく世界情勢のドラゴン）
+    spark(X-90,Y-58); spark(X+80,Y-50); spark(X-76,Y+26);
+    px(X-92,Y-40,34,12,'#3a2a5a'); px(X-104,Y-30,26,10,'#3a2a5a'); // 左の翼
+    px(X-84,Y-52,22,14,'#3a2a5a');
+    px(X-98,Y-26,14,4,'#ff5a4a'); px(X-90,Y-38,4,14,'#ff5a4a');    // 翼のグラフ模様（上がる矢印）
+    px(X+58,Y-40,34,12,'#3a2a5a'); px(X+78,Y-30,26,10,'#3a2a5a');  // 右の翼
+    px(X+62,Y-52,22,14,'#3a2a5a');
+    px(X+84,Y-26,14,4,'#8ad0ff'); px(X+88,Y-38,4,14,'#8ad0ff');    // 翼のグラフ模様（下がる矢印）
+    px(X-24,Y-56,48,32,'#6a4a9a');                                 // 頭
+    px(X-30,Y-64,12,12,'#6a4a9a'); px(X+18,Y-64,12,12,'#6a4a9a');  // 角のつけね
+    px(X-34,Y-74,8,12,'#ffd24a'); px(X+26,Y-74,8,12,'#ffd24a');    // 金の角
+    px(X-14,Y-48,9,8,'#ffd24a'); px(X+5,Y-48,9,8,'#ffd24a');       // らんらんとした目
+    px(X-11,Y-46,4,4,'#c83a3a'); px(X+8,Y-46,4,4,'#c83a3a');
+    px(X-8,Y-34,16,6,'#4a3a6a');                                   // 口
+    px(X-12,Y-30,4,4,'#ffffff'); px(X+8,Y-30,4,4,'#ffffff');       // 牙
+    px(X-30,Y-24,60,52,'#6a4a9a');                                 // 胴
+    px(X-16,Y-8,32,28,'#8a6ab8');                                  // 腹
+    px(X-6,Y-2,12,6,'#ffd24a'); px(X-2,Y-6,4,14,'#ffd24a');        // 腹の「¥」もよう（かすれ気味）
+    px(X-44,Y-16,14,10,'#6a4a9a'); px(X-52,Y-8,10,12,'#6a4a9a');   // 左腕
+    px(X-58,Y+4,14,8,'#ffd24a');                                   //  → 金利のかたまり
+    px(X+30,Y-16,14,10,'#6a4a9a'); px(X+42,Y-8,10,12,'#6a4a9a');   // 右腕
+    px(X+44,Y+2,16,12,'#f0ece0'); px(X+47,Y+6,10,3,'#ff5a4a');     //  → 関税のしらせ
+    px(X-24,Y+28,16,18,'#4a3a6a'); px(X+8,Y+28,16,18,'#4a3a6a');   // 脚
+    px(X-26,Y+44,18,6,'#3a2a5a'); px(X+8,Y+44,18,6,'#3a2a5a');
+    px(X+28,Y+34,22,8,'#6a4a9a'); px(X+46,Y+30,12,8,'#6a4a9a');    // しっぽ
+    px(X+56,Y+26,8,8,'#ff5a4a');                                   // しっぽの先の「％」玉
+  }
+}
+
+/* =========================================================================
+   三本締めミニゲーム（宴会ラウンドの締めに起動・音ゲー式）
+   ------------------------------------------------------------------------
+   ビール・ラーメンどんぶり・肉が 上から流れてくる。判定ラインに
+   重なった瞬間に タップ／スペースキー。しめの「パン」は 金のジョッキ。
+   出来に応じて あらりボーナス。単体プロト＝20260903_三本締めミニゲームプロト。
+   ========================================================================= */
+var JG=null;
+/* すべて BPM115 の 8分音符グリッドから導出＝手拍子が 音楽のビートに乗る */
+var JG_BPM=115, JG_BEAT=60000/(JG_BPM*2);   // 8分音符（ms）≒260.9
+var JG_PATU=[0,1,2, 4,5,6, 8,9,10, 12];          // 三本締めのリズム：パパパン×3＋一拍おいてパン（8分単位・2小節）
+var JG_PAT=[], JG_pi;
+for(JG_pi=0;JG_pi<JG_PATU.length;JG_pi++) JG_PAT.push(Math.round(JG_PATU[JG_pi]*JG_BEAT));
+var JG_HON=[{kake:'お手を拝借！　いよ〜おっ！',lead:Math.round(16*JG_BEAT)},  // 前奏2小節→3小節目から
+            {kake:'もう一丁！',lead:0},                                       // ３３７は 続けざま
+            {kake:'ラスト！',lead:0}];
+var JG_PITA=100, JG_YOSHI=220, JG_APPR=1300, JG_HITY=190;
+
+var JGAC=null;
+function jimeAudio(){
+  if(JGAC) return;
+  try{
+    var C=window.AudioContext||window.webkitAudioContext;
+    if(C) JGAC=new C();
+  }catch(e){ JGAC=null; }
+}
+/* 宴会場のリバーブ（生成インパルス応答のコンボルバー） */
+var JGREV=null;
+function jimeReverb(){
+  if(!JGAC||JGREV) return;
+  try{
+    var sr=JGAC.sampleRate, len=Math.floor(sr*1.4), ch, i;
+    var ir=JGAC.createBuffer(2,len,sr);
+    for(ch=0;ch<2;ch++){
+      var d=ir.getChannelData(ch);
+      for(i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.8);
+    }
+    var cv2=JGAC.createConvolver(); cv2.buffer=ir;
+    var wet=JGAC.createGain(); wet.gain.value=0.5;
+    cv2.connect(wet); wet.connect(JGAC.destination);
+    JGREV=cv2;
+  }catch(e){ JGREV=null; }
+}
+function clapSound(good){
+  /* ハンドクラップ：ずれて重なる 4連ノイズバースト（909方式）＋宴会場リバーブ */
+  if(!JGAC) return;
+  try{
+    if(JGAC.state==='suspended') JGAC.resume();
+    jimeReverb();
+    var sr=JGAC.sampleRate, len=Math.floor(sr*0.18);
+    var buf=JGAC.createBuffer(1,len,sr);
+    var d=buf.getChannelData(0);
+    var bursts=[0,0.010,0.021,0.033], i, b;
+    for(i=0;i<len;i++){
+      var t=i/sr, a=0;
+      for(b=0;b<bursts.length;b++){
+        var dt=t-bursts[b];
+        if(dt>=0) a+=Math.exp(-dt/(b<3?0.005:0.055));   // 頭3発は鋭く、最後だけ余韻
+      }
+      d[i]=(Math.random()*2-1)*a;
+    }
+    var src=JGAC.createBufferSource(); src.buffer=buf;
+    var hp=JGAC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=400;
+    var bp=JGAC.createBiquadFilter(); bp.type='bandpass';
+    bp.frequency.value=good?1500:750; bp.Q.value=0.9;   // ミス時は 湿った音
+    var pk=JGAC.createBiquadFilter(); pk.type='peaking';
+    pk.frequency.value=2400; pk.gain.value=6; pk.Q.value=1.5;  // パチンと立つ高域
+    var gn=JGAC.createGain(); gn.gain.value=good?0.9:0.5;
+    src.connect(hp); hp.connect(bp); bp.connect(pk); pk.connect(gn);
+    gn.connect(JGAC.destination);
+    if(JGREV) gn.connect(JGREV);                        // 残響へ センド
+    src.start();
+  }catch(e){}
+}
+
+/* BGM：アフリカ・バンバータ風エレクトロ（2小節ループ・WebAudioで合成＝外部ファイルなし）
+   808キック／エレクトロスネア／16分ハット＋裏拍オープンハット／シンセベース／シンセスタブ */
+var JGBGM=null;
+function jimeBgmStart(totalMs, at){
+  if(!JGAC) return;
+  try{
+    if(JGAC.state==='suspended') JGAC.resume();
+    var t0=(at!==undefined)?at:JGAC.currentTime+0.05;
+    var s16=JG_BEAT/2000;                               // 16分音符（秒）・BPM115
+    var master=JGAC.createGain(); master.gain.value=0.30; master.connect(JGAC.destination);
+    JGBGM=master;
+    function fq(m){ return 440*Math.pow(2,(m-69)/12); }
+    /* 2小節（16分×32）のループ・パターン */
+    var KICK=[1,0,0,1, 0,0,1,0, 0,0,1,0, 0,0,0,0,  1,0,0,1, 0,0,1,0, 0,0,1,0, 0,0,1,0];
+    var SNR =[0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0,  0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,1];
+    var BASS8=[45,45,-1,45, -1,45,-1,43, 45,45,-1,45, 48,-1,43,-1];   // 8分×16（2小節）
+    var hb=JGAC.createBuffer(1,Math.floor(JGAC.sampleRate*0.15),JGAC.sampleRate);
+    var hd=hb.getChannelData(0), i;
+    for(i=0;i<hd.length;i++) hd[i]=(Math.random()*2-1);
+    function noiseAt(t,dur,hpf,vol){
+      var s=JGAC.createBufferSource(); s.buffer=hb;
+      var f=JGAC.createBiquadFilter(); f.type='highpass'; f.frequency.value=hpf;
+      var g=JGAC.createGain();
+      g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+      s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t+dur+0.02);
+    }
+    function kick(t){                                   // 808キック：ピッチが落ちるサイン波
+      var o=JGAC.createOscillator(), g=JGAC.createGain();
+      o.type='sine';
+      o.frequency.setValueAtTime(160,t);
+      o.frequency.exponentialRampToValueAtTime(44,t+0.11);
+      g.gain.setValueAtTime(1.0,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.20);
+      o.connect(g); g.connect(master); o.start(t); o.stop(t+0.22);
+    }
+    function snare(t){                                  // エレクトロスネア（控えめ・主役は手拍子）
+      noiseAt(t,0.09,1200,0.35);
+      var o=JGAC.createOscillator(), g=JGAC.createGain();
+      o.type='triangle'; o.frequency.value=185;
+      g.gain.setValueAtTime(0.25,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.08);
+      o.connect(g); g.connect(master); o.start(t); o.stop(t+0.1);
+    }
+    function bass(t,m){                                 // シンセベース
+      var o=JGAC.createOscillator(), f=JGAC.createBiquadFilter(), g=JGAC.createGain();
+      o.type='square'; o.frequency.value=fq(m-12);
+      f.type='lowpass'; f.frequency.value=800;
+      g.gain.setValueAtTime(0.34,t); g.gain.exponentialRampToValueAtTime(0.02,t+JG_BEAT/1000*0.85);
+      o.connect(f); f.connect(g); g.connect(master); o.start(t); o.stop(t+JG_BEAT/1000*0.9);
+    }
+    function stab(t){                                   // 2小節に一発の シンセスタブ（Am）
+      var ns=[57,60,64], j;
+      for(j=0;j<ns.length;j++){
+        var o=JGAC.createOscillator(), g=JGAC.createGain();
+        o.type='sawtooth'; o.frequency.value=fq(ns[j])*(1+(j-1)*0.004);
+        g.gain.setValueAtTime(0.16,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.28);
+        o.connect(g); g.connect(master); o.start(t); o.stop(t+0.3);
+      }
+    }
+    var n16=Math.floor(totalMs/1000/s16), e8=s16*2, SW=0.65;  // 16分シャッフル65%
+    for(i=0;i<n16;i++){
+      var t=t0+Math.floor(i/2)*e8+(i%2)*SW*e8, st=i%32;
+      if(KICK[st]) kick(t);
+      if(SNR[st])  snare(t);
+      if(st%4===2) noiseAt(t,0.10,8000,0.18);           // 裏拍のオープンハット
+      else         noiseAt(t,0.04,9000,(st%2===0)?0.16:0.11);  // 16分の刻み（チキチキ）
+      if(i%2===0){ var bm=BASS8[(i/2)%16]; if(bm>=0) bass(t,bm); }
+      if(st===0) stab(t);
+    }
+  }catch(e){}
+}
+function jimeBgmStop(){
+  if(JGBGM){ try{ JGBGM.gain.setTargetAtTime(0.0001,JGAC.currentTime,0.12); }catch(e){} JGBGM=null; }
+}
+function jimeYo(){
+  /* 「いよ！」の掛け声（声帯がわりのサウ波＋声っぽい帯域のバンドパス） */
+  if(!JGAC) return;
+  try{
+    var t=JGAC.currentTime;
+    var o=JGAC.createOscillator(), f=JGAC.createBiquadFilter(), g=JGAC.createGain();
+    o.type='sawtooth';
+    o.frequency.setValueAtTime(220,t);
+    o.frequency.exponentialRampToValueAtTime(330,t+0.06);
+    o.frequency.exponentialRampToValueAtTime(180,t+0.22);
+    f.type='bandpass'; f.frequency.value=800; f.Q.value=1.2;
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.5,t+0.03);
+    g.gain.exponentialRampToValueAtTime(0.001,t+0.25);
+    o.connect(f); f.connect(g); g.connect(JGAC.destination);
+    if(JGREV) g.connect(JGREV);
+    o.start(t); o.stop(t+0.28);
+  }catch(e){}
+}
+
+function jimeNew(){
+  var notes=[], marks=[], base=0, h, i;
+  var menu=['beer','ramen','meat','sake'];
+  for(h=0;h<JG_HON.length;h++){
+    /* 掛け声は 叩き始めの 1小節前に 出す（1本目は 前奏2小節目の頭） */
+    marks.push({t:base+JG_HON[h].lead-Math.round(8*JG_BEAT), txt:JG_HON[h].kake, hon:h});
+    for(i=0;i<JG_PAT.length;i++){
+      notes.push({t:base+JG_HON[h].lead+JG_PAT[i], hon:h, idx:i, judge:null,
+                  icon:(i===JG_PAT.length-1)?'gold':menu[Math.floor(Math.random()*menu.length)]});
+    }
+    /* ４を叩き終えた 2小節目の4拍目に「いよ！」の掛け声 */
+    marks.push({t:base+JG_HON[h].lead+Math.round(14*JG_BEAT), txt:'いよ！', dur:800, voice:true, hon:h});
+    base=base+JG_HON[h].lead+JG_PAT[JG_PAT.length-1]+Math.round(4*JG_BEAT);   // 1本＝2小節ぴったり
+  }
+  return {t0:0, act0:0, on:false, ctx:null, notes:notes, marks:marks, endAt:base+400,
+          score:0, pita:0, yoshi:0, miss:0, furai:0, combo:0, maxcombo:0,
+          flash:null, flashT:-999, clapT:-999};
+}
+/* 音ゲーの命＝同期。BGMもノーツも オーディオクロック（currentTime）を同じ原点で使う */
+function jimeNow(){
+  return JGAC ? (JGAC.currentTime-JG.act0)*1000 : (performance.now()-JG.t0);
+}
+
+function startJime(){
+  /* まずは 説明画面。「お手を拝借」で 本番開始 */
+  JG=jimeNew();
+  var vi=el('vin'), vl=el('veil');
+  vi.innerHTML='<h2>三 本 締 め</h2>'
+    +'<p style="text-align:center;color:#9a9a9a;font-size:11px">ミニゲーム ─ 音頭は あなた</p>'
+    +'<p>締めは <b>パパパン・パパパン・パパパン・（ウン）パン</b>──三本締めのリズム。それを <b>3本 続けざま</b>。'
+    +'エレクトロなリズムの <b>前奏2小節</b>のあと、3小節目から 叩き始める。</p>'
+    +'<p style="color:#7fd6a2">◆ 宴会の名残──<b>ビール・日本酒・ラーメンどんぶり・肉</b>──が 上から流れてくる。<br>'
+    +'◆ <b>白い判定ラインに 重なった瞬間</b>、画面タップ か <b>スペースキー</b>で「パン！」。<br>'
+    +'◆ しめの一発は <b>金のジョッキ</b>。ここが いちばん 気持ちいい。<br>'
+    +'◆ 判定は <b>ピタッ</b>（+3）／<b>よし</b>（+1）。早すぎると フライング、遅れると 手拍子が 抜ける。</p>'
+    +'<p class="sp">◆ 締めが 美しいほど、<b>あらりが もどる</b>。宴会場の視線を あつめて、美しく 締めりん。</p>'
+    +'<button class="big" id="jst">お手を拝借</button>';
+  vl.classList.remove('hide');
+  var b=el('jst');
+  if(!b){ jimeFinish(); return; }
+  b.onclick=function(){ jimeAudio(); jimeBegin(); };
+}
+
+function jimeBegin(){
+  var vi=el('vin');
+  vi.innerHTML='<h2>三 本 締 め</h2>'
+    +'<canvas id="jg" width="320" height="240" style="width:100%;image-rendering:pixelated;border:2px solid #444;border-radius:4px"></canvas>'
+    +'<p id="jgs" style="text-align:center;color:#ffe14a;margin-top:6px">とくてん 0　　そろった拍手 0</p>'
+    +'<div id="jgt" style="border:3px solid #fff;border-radius:6px;padding:12px;text-align:center;'
+    +'font-size:26px;margin-top:6px;cursor:pointer;letter-spacing:6px">👏</div>'
+    +'<p style="text-align:center;color:#9a9a9a;font-size:10px;margin-top:4px">画面か 👏 をタップ／スペースキー</p>';
+  var c=el('jg');
+  if(!c||!c.getContext){ jimeFinish(); return; }
+  JG.ctx=c.getContext('2d'); JG.ctx.imageSmoothingEnabled=false;
+  c.addEventListener('pointerdown', function(e){ e.preventDefault(); jimeTap(); });
+  var tb=el('jgt');
+  if(tb) tb.addEventListener('pointerdown', function(e){ e.preventDefault(); jimeTap(); });
+  jimeAudio(); jimeReverb();
+  if(JGAC){
+    if(JGAC.state==='suspended') JGAC.resume();
+    JG.act0=JGAC.currentTime+0.15;
+    jimeBgmStart(JG.endAt+600, JG.act0);
+  }
+  JG.t0=performance.now()+(JGAC?(JG.act0-JGAC.currentTime)*1000:0);
+  JG.on=true;
+  RAF(jimeLoop);
+}
+
+function jimeTap(){
+  if(!JG||!JG.on) return;
+  var t=jimeNow(), best=-1, bd=1e9, i, n;
+  JG.clapT=t;
+  for(i=0;i<JG.notes.length;i++){
+    n=JG.notes[i];
+    if(n.judge) continue;
+    var d=Math.abs(t-n.t);
+    if(d<bd){ bd=d; best=i; }
+  }
+  if(best>=0 && bd<=JG_YOSHI){
+    n=JG.notes[best];
+    if(bd<=JG_PITA){ n.judge='pita'; JG.pita++; JG.score+=3; JG.combo++;
+      JG.flash={txt:'ピタッ！',c:'#ffe14a'}; }
+    else{ n.judge='yoshi'; JG.yoshi++; JG.score+=1; JG.combo++;
+      JG.flash={txt:'よし！',c:'#7fd6a2'}; }
+    if(JG.combo>JG.maxcombo) JG.maxcombo=JG.combo;
+    clapSound(true);
+  }else{
+    JG.furai++; JG.combo=0;
+    JG.flash={txt:'フライング！',c:'#ff8a7a'};
+    clapSound(false);
+  }
+  JG.flashT=t;
+  var sEl=el('jgs');
+  if(sEl) sEl.textContent='とくてん '+JG.score+'　　そろった拍手 '+JG.combo;
+}
+
+function jimeLoop(){
+  if(!JG||!JG.on) return;
+  var t=jimeNow(), i, n;
+  for(i=0;i<JG.marks.length;i++){
+    var mk=JG.marks[i];
+    if(mk.voice && !mk.done && t>=mk.t){ mk.done=true; jimeYo(); }
+  }
+  for(i=0;i<JG.notes.length;i++){
+    n=JG.notes[i];
+    if(!n.judge && t>n.t+JG_YOSHI){
+      n.judge='miss'; JG.miss++; JG.combo=0;
+      JG.flash={txt:'……手拍子が 抜けた',c:'#9a9a9a'}; JG.flashT=t;
+      var sEl=el('jgs');
+      if(sEl) sEl.textContent='とくてん '+JG.score+'　　そろった拍手 0';
+    }
+  }
+  jimeDraw(t);
+  if(t>=JG.endAt){ jimeFinish(); return; }
+  RAF(jimeLoop);
+}
+
+function jimeIcon(kind,x,y){
+  var c=JG.ctx;
+  function q(a,b,w,h,col){ c.fillStyle=col; c.fillRect(x+a,y+b,w,h); }
+  if(kind==='beer'){
+    q(-9,-9,16,18,'#ffd24a'); q(-9,-13,16,6,'#ffffff');
+    q(-6,-7,3,13,'#ffe89a');
+    q(7,-5,5,10,'#c8c8d0'); q(7,-5,2,10,'#e8e8f0');
+  }else if(kind==='gold'){
+    q(-10,-10,18,20,'#ffe14a'); q(-10,-15,18,7,'#ffffff');
+    q(-7,-8,4,15,'#fff2b0');
+    q(8,-6,5,12,'#ffd24a');
+    q(-14,-16,3,3,'#ffffff'); q(11,-18,3,3,'#ffffff');
+  }else if(kind==='ramen'){
+    q(-11,-2,22,10,'#c83a3a'); q(-8,6,16,3,'#8a2a2a');
+    q(-9,-6,18,5,'#f0ece0');
+    q(-6,-9,5,3,'#ffb04a'); q(2,-9,5,3,'#7fd6a2');
+    q(-4,-16,2,5,'#9a9a9a'); q(3,-17,2,5,'#9a9a9a');
+  }else if(kind==='meat'){
+    q(-10,-7,15,13,'#8a4a2a'); q(-8,-5,11,6,'#a85a32');
+    q(5,-3,6,5,'#f0ece0'); q(9,-6,4,4,'#f0ece0'); q(9,1,4,4,'#f0ece0');
+  }else if(kind==='sake'){
+    q(-4,-16,8,7,'#f0ece0'); q(-5,-11,10,3,'#e0d8c8');    // とっくりの首
+    q(-8,-8,15,17,'#f0ece0');                             // 胴
+    q(-8,-3,15,4,'#5a8ad0');                              // 藍の帯
+    q(8,3,7,6,'#f0ece0'); q(8,3,7,2,'#5a8ad0');           // おちょこ
+  }
+}
+
+function jimeDraw(t){
+  var c=JG.ctx, LX=160, i, n;
+  function q(x,y,w,h,col){ c.fillStyle=col; c.fillRect(x,y,w,h); }
+  q(0,0,320,240,'#000');
+  q(20,10,16,20,'#c83a3a'); q(24,6,8,5,'#5a3a1a');       // ちょうちん
+  q(284,10,16,20,'#c83a3a'); q(288,6,8,5,'#5a3a1a');
+  q(0,232,320,4,'#8a5a2a');                              // 長机
+  q(LX-36,0,2,232,'#222'); q(LX+34,0,2,232,'#222');      // 落下レーン
+  q(LX-44,JG_HITY-1,88,3,'#ffffff');                     // 判定ライン
+  q(LX-44,JG_HITY-14,2,28,'#666'); q(LX+42,JG_HITY-14,2,28,'#666');
+
+  var hon=0;
+  for(i=0;i<JG.notes.length;i++){ n=JG.notes[i]; if(!n.judge){ hon=n.hon; break; } hon=n.hon; }
+  c.fillStyle='#9a9a9a'; c.font='12px "MS Gothic",monospace';
+  c.fillText(['一本目','二本目','三本目'][hon]||'三本目', 10, 226);
+
+  for(i=0;i<JG_PAT.length;i++){
+    var done=null, j;
+    for(j=0;j<JG.notes.length;j++){
+      n=JG.notes[j];
+      if(n.hon===hon&&n.idx===i){ done=n.judge; break; }
+    }
+    q(84+i*16,220,10,8, done==='pita'?'#ffe14a':(done==='yoshi'?'#7fd6a2':(done==='miss'?'#5a5a5a':'#2e2e2e')));
+  }
+
+  for(i=0;i<JG.marks.length;i++){
+    var mk=JG.marks[i];
+    if(t>=mk.t && t<mk.t+(mk.dur||1500)){
+      c.fillStyle=mk.voice?'#ff9a4a':'#ffe14a'; c.font='16px "MS Gothic",monospace';
+      var wd=c.measureText(mk.txt).width;
+      c.fillText(mk.txt, 160-wd/2, 34);
+    }
+  }
+
+  for(i=0;i<JG.notes.length;i++){
+    n=JG.notes[i];
+    if(n.judge && n.judge!=='miss') continue;
+    var dt=n.t-t;
+    if(dt>JG_APPR || dt<-JG_YOSHI) continue;
+    var y=JG_HITY-(dt/JG_APPR)*(JG_HITY+30);
+    jimeIcon(n.icon, LX, Math.round(y));
+  }
+
+  if(t-JG.clapT<130){
+    q(LX-58,JG_HITY-10,14,18,'#f2cda2'); q(LX+44,JG_HITY-10,14,18,'#f2cda2');
+    q(LX-40,JG_HITY-6,8,3,'#ffe14a'); q(LX+32,JG_HITY-6,8,3,'#ffe14a');
+  }
+  if(JG.flash && t-JG.flashT<650){
+    c.fillStyle=JG.flash.c; c.font='15px "MS Gothic",monospace';
+    var w2=c.measureText(JG.flash.txt).width;
+    c.fillText(JG.flash.txt, 160-w2/2, JG_HITY-32);
+  }
+}
+
+function jimeFinish(){
+  var s=JG?JG.score:0, rank, bonus;
+  if(JG) JG.on=false;
+  jimeBgmStop();
+  if(s>=84){ rank='締めの神';   bonus=10; }
+  else if(s>=66){ rank='締めの達人'; bonus=8; }
+  else if(s>=45){ rank='宴会部長';   bonus=5; }
+  else if(s>=20){ rank='若手有望';   bonus=3; }
+  else { rank='締め直し'; bonus=0; }
+  G.jime=rank+'（'+s+'点）';
+  var lines=[['crit','＊　三本締め、判定は「'+rank+'」！　（とくてん '+s+'／90）　＊']];
+  if(bonus>0){
+    G.ara=Math.min(TUNE.ARA0,G.ara+bonus);
+    lines.push(['good','締めが 美しく、あらりが '+bonus+' もどった！']);
+  }else{
+    lines.push(['sys','長老「……もう一丁は、また来年に しといたるわ」']);
+  }
+  if(s>=84){ G.mp=Math.min(G.mpmax,G.mp+5);
+    lines.push(['good','宴会場が ひとつになった。こんきょも 5 もどった！']); }
+  lines.push(['good','会は 美しく お開き。組合の縁は、また一年 つながった。']);
+  el('veil').classList.add('hide');
+  G.q=lines.concat(G.q);
+  flush(); render();
+}
+
+/* =========================================================================
+   起動
+   ========================================================================= */
+function start(){
+  G=newGame();
+  var vl=el('veil'); if(vl) vl.classList.add('hide');
+  say([
+    ['sys','── 9月の木曜日。日が落ちるのが、早くなった。いつもの練習場。'],
+    ['','ミヤカワ「変わりゆく世界情勢。国債の金利は 3パーセント越え。……戦いのステージは、果てしなく 続くだに」'],
+    ['','岩田「大きく出たねえ。で、今週は なにと 戦うだ」'],
+    ['','ミヤカワ「銀行の金利面談、ＲＯＩＣ見積もりバトルロワイヤル、ＴＥＫＮＯ青年組合のお疲れ様会、10月の ＲＯＩＣ杯ゴルフ大会、それと インド視察の計画づくり」'],
+    ['','佐藤「……ぜんぶじゃん。あと ＲＯＩＣ 好きすぎだら」　高林「時代だに」'],
+    ['sys','── 見積もりクエスト・秋の陣、開幕。']
+  ]);
+  G.q.push(['__next','']);
+  G.mode='msg';
+  render(); flush();
+}
+
+function title(){
+  var h='';
+  h+='<h2>見 積 も り ク エ ス ト</h2>';
+  h+='<p style="text-align:center;color:#ffe14a;font-size:14px;letter-spacing:2px;margin-top:-6px">＜ＲＯＩＣバトルロワイヤル＞</p>';
+  h+='<p style="text-align:center;color:#9a9a9a;font-size:11px">木曜の野望 ─ OHMAMA SOFT</p>';
+  h+='<p>変わりゆく世界情勢、国債の金利は 3パーセント越え。それでも 木曜日は やってくる。'
+    +'<b>'+procList(' → ')+'</b>、そして──？　経営者の秋を 駆け抜ける '+nProcAll()+'ラウンド。</p>';
+  h+='<p>待ち受けるのは 金利の魔物、あいみつ三兄弟、宴会の主、'
+    +'全身マーク＆ロナで あらわれる ＲＯＩＣ杯の しょちょう、段取りの山。'
+    +'……そして 秋の夜空に、なにかが うずを 巻いとる。</p>';
+  h+='<p style="color:#7fd6a2">◆ <b>みつもり／たいおう</b>＝その場の一手を選ぶ。使いすぎると <b>あらり</b>（AP＝経営の粗利）が 飛ぶ。<br>'
+    +'◆ <b>だんまり</b>＝沈黙で耐える。相手が 先に 折れることがある。<br>'
+    +'◆ <b>じゅもん</b>＝経営者の技。<b>こんきょ</b>（MP）を使う。弱点に 刺されば 効果ばつぐん。<br>'
+    +'◆ <b>にげる</b>＝立て直し。'+TUNE.NIGE+'回で 秋が終わる。</p>';
+  h+='<p style="color:#ffd24a">◆ 舞台ごとに、そこでしか使えない <b>ご当地の技</b>が ある：'
+    +'銀行面談の「クリアゲヘンサイ」、バトルロワイヤルの「ＲＯＩＣケイエイ」、お疲れ様会の「イッポンジメ」、'
+    +'ゴルフの「ヤクソクノクンレン」、計画づくりの「コンサルカツヨウ」……そして 最後の舞台の「？？？」。</p>';
+  h+='<p style="color:#ff8a7a">◆ 相手の技：キンリジョウショウ／スエオキキカンシュウリョウ／アイミツサンシャ／'
+    +'チョウロウノカンパイアイサツ／ビンゴタイカイ／シンサクドライバーノゴウダン／'
+    +'キョリケイピッタリショット／サンパット／イービザノメイロ／ショータケサンカラノメール……</p>';
+  h+='<p style="color:#7fd6a2">◆ 宴会の最後には、恒例の <b>三本締め</b>が 待っとる'
+    +'（流れてくる ビール・日本酒・ラーメン・肉に合わせて タップ／スペースキーの 音ゲー）。<br>'
+    +'◆ <b>シャチョウノケツダン</b>＝最強で 最高コストの技。一度きり。<br>'
+    +'◆ 勝つたびに <b>経営のちしき</b>が 一枚。遊びながら 金利とＲＯＩＣに くわしくなる（当社比）。<br>'
+    +'◆ うわさでは、すべての関門を 越えた者の前に、<b>倒せないもの</b>が あらわれるらしい。</p>';
+  h+='<p class="sp">◆ 秋の夜にも、現場から 電話は かかってくる。</p>';
+  h+='<button class="big" id="st">はじめる</button>';
+  var vi=el('vin'); if(vi){ vi.innerHTML=h;
+    var b=el('st'); if(b) b.onclick=start; }
+}
+
+if(typeof document!=='undefined' && document.getElementById){
+  cv=el('g'); if(cv&&cv.getContext){ cx=cv.getContext('2d'); if(cx) cx.imageSmoothingEnabled=false; }
+  // 画面のどこを叩いても メッセージは 送れる（詰まって見えないように）
+  var w=el('msg');   if(w) w.onclick=function(){ advance(); };
+  var sc=el('scene');if(sc) sc.onclick=function(){ advance(); };
+  var cw=el('cmd');  if(cw) cw.onclick=function(){ if(G.q.length) advance(); };
+  if(document.addEventListener){
+    document.addEventListener('keydown', function(e){    // 三本締めは スペースキーでも 打てる
+      if(e.code==='Space' && JG && JG.on){ e.preventDefault(); jimeTap(); }
+    });
+  }
+  G=newGame();
+  render();
+  if(typeof location!=='undefined' && location.search && location.search.indexOf('jime')>=0){
+    startJime();   // ?jime ＝ 三本締めだけ試す デバッグ起動（説明→ゲーム→ボーナス表示）
+  }else{
+    title();
+  }
+}
+</script>
+</body>
+</html>
