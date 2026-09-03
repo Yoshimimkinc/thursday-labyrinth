@@ -1292,7 +1292,18 @@ function jimeNew(){
   }
   return {t0:0, act0:0, on:false, ctx:null, notes:notes, marks:marks, endAt:base+400,
           score:0, pita:0, yoshi:0, miss:0, furai:0, combo:0, maxcombo:0,
-          flash:null, flashT:-999, clapT:-999};
+          flash:null, flashT:-999, clapT:-999, big:-999, parts:[]};
+}
+/* 締めのパン用：撃破演出（破片が飛び散る）を流用 */
+function jimeBurst(){
+  var pal=['#ffe14a','#ffd24a','#ffffff','#ff9a4a','#fff2b0'], a=[], i;
+  for(i=0;i<64;i++){
+    var ang=Math.random()*Math.PI*2, sp=1.6+Math.random()*4.4;
+    a.push({x:160+(Math.random()*24-12), y:JG_HITY-6+(Math.random()*16-8),
+            vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp-3.2,
+            s:3+Math.floor(Math.random()*6), c:pal[i%pal.length]});
+  }
+  return a;
 }
 /* 音ゲーの命＝同期。BGMもノーツも オーディオクロック（currentTime）を同じ原点で使う */
 function jimeNow(){
@@ -1305,13 +1316,8 @@ function startJime(){
   var vi=el('vin'), vl=el('veil');
   vi.innerHTML='<h2>三 本 締 め</h2>'
     +'<p style="text-align:center;color:#9a9a9a;font-size:11px">ミニゲーム ─ 音頭は あなた</p>'
-    +'<p>締めは <b>パパパン・パパパン・パパパン・（ウン）パン</b>──三本締めのリズム。それを <b>3本 続けざま</b>。'
-    +'エレクトロなリズムの <b>前奏2小節</b>のあと、3小節目から 叩き始める。</p>'
-    +'<p style="color:#7fd6a2">◆ 宴会の名残──<b>ビール・日本酒・ラーメンどんぶり・肉</b>──が 上から流れてくる。<br>'
-    +'◆ <b>白い判定ラインに 重なった瞬間</b>、画面タップ か <b>スペースキー</b>で「パン！」。<br>'
-    +'◆ しめの一発は <b>金のジョッキ</b>。ここが いちばん 気持ちいい。<br>'
-    +'◆ 判定は <b>ピタッ</b>（+3）／<b>よし</b>（+1）。早すぎると フライング、遅れると 手拍子が 抜ける。</p>'
-    +'<p class="sp">◆ 締めが 美しいほど、<b>あらりが もどる</b>。宴会場の視線を あつめて、美しく 締めりん。</p>'
+    +'<p>流れてくるものが <b>白い線に 重なった瞬間</b>、👏を タップ（スペースキー可）。</p>'
+    +'<p style="color:#7fd6a2">前奏2小節 → <b>パパパン・パパパン・パパパン・パン</b> ×3本。締めが美しいと <b>あらりが もどる</b>。</p>'
     +'<button class="big" id="jst">お手を拝借</button>';
   vl.classList.remove('hide');
   var b=el('jst');
@@ -1360,6 +1366,7 @@ function jimeTap(){
       JG.flash={txt:'ピタッ！',c:'#ffe14a'}; }
     else{ n.judge='yoshi'; JG.yoshi++; JG.score+=1; JG.combo++;
       JG.flash={txt:'よし！',c:'#7fd6a2'}; }
+    if(n.idx===JG_PAT.length-1){ JG.big=t; JG.parts=jimeBurst(); }  // 締めのパン＝爆発
     if(JG.combo>JG.maxcombo) JG.maxcombo=JG.combo;
     clapSound(true);
   }else{
@@ -1472,6 +1479,23 @@ function jimeDraw(t){
     c.fillStyle=JG.flash.c; c.font='15px "MS Gothic",monospace';
     var w2=c.measureText(JG.flash.txt).width;
     c.fillText(JG.flash.txt, 160-w2/2, JG_HITY-32);
+  }
+
+  /* 締めのパン：破片が 飛び散る（撃破演出の流用）＋白フラッシュ */
+  var age=t-JG.big;
+  if(JG.parts.length && age<1000){
+    var al=Math.max(0,1-age/900);
+    c.save(); c.globalAlpha=al;
+    for(i=0;i<JG.parts.length;i++){
+      var p=JG.parts[i];
+      p.x+=p.vx; p.y+=p.vy; p.vy+=0.22; p.s=Math.max(1,p.s-0.05);
+      q(Math.round(p.x),Math.round(p.y),Math.round(p.s),Math.round(p.s),p.c);
+    }
+    c.restore();
+  }else if(JG.parts.length && age>=1000){ JG.parts=[]; }
+  if(age>=0 && age<350){
+    c.save(); c.globalAlpha=0.9*(1-age/350);
+    c.fillStyle='#ffffff'; c.fillRect(0,0,320,240); c.restore();
   }
 }
 
