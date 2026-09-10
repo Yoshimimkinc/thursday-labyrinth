@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>木曜日の投資対効果三本締め対決 — 木曜の野望</title>
+<style>
+/* ── ヴェイパーウェイヴ・テーマ（ネオンピンク×シアン・1990s） ── */
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{min-height:100%;background:#0d0621;color:#efe6ff;
+  font-family:'MS Gothic','Osaka-Mono','Hiragino Kaku Gothic ProN',monospace;
+  -webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;user-select:none;touch-action:manipulation;}
+body{display:flex;justify-content:center;}
+#wrap{width:100%;max-width:420px;min-height:100vh;padding:6px 6px 12px;
+  background:linear-gradient(#0d0621 0%,#1d0f3f 60%,#3a1a5e 100%);}
+#crt{position:fixed;inset:0;z-index:20;pointer-events:none;
+  background:repeating-linear-gradient(transparent 0 2px,rgba(0,0,0,.16) 2px 3px);}
+.win{border:2px solid #01cdfe;border-radius:8px;background:rgba(13,6,33,.88);
+  padding:6px 8px;margin-bottom:6px;
+  box-shadow:0 0 8px rgba(1,205,254,.45), inset 0 0 10px rgba(255,113,206,.12);}
+#top{display:flex;justify-content:space-between;font-size:12.5px;line-height:1.6;color:#b9a6e0;}
+#top .r{text-align:right;}
+#top .y{color:#fffb96;text-shadow:0 0 6px rgba(255,251,150,.7);}
+#top .p{color:#ff71ce;text-shadow:0 0 6px rgba(255,113,206,.7);}
+#scene{border:2px solid #b967ff;border-radius:8px;background:#0d0621;margin-bottom:6px;overflow:hidden;
+  box-shadow:0 0 10px rgba(185,103,255,.5);}
+canvas{display:block;width:100%;height:auto;image-rendering:pixelated;}
+#msg{min-height:34px;font-size:12.5px;line-height:1.6;color:#d8c8ff;text-align:center;}
+#btns{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:6px;}
+.bt{border:2px solid #ff71ce;border-radius:8px;background:#1a0b2e;padding:14px 4px;
+  text-align:center;font-size:17px;letter-spacing:2px;color:#fffb96;cursor:pointer;
+  box-shadow:0 0 8px rgba(255,113,206,.5), inset 0 0 8px rgba(1,205,254,.15);}
+.bt small{display:block;font-size:9px;color:#8a7ab0;letter-spacing:0;margin-top:3px;}
+.bt:active{background:#3a1a5e;}
+#btns.off .bt{opacity:.25;pointer-events:none;}
+#veil{position:fixed;inset:0;background:rgba(13,6,33,.96);z-index:9;display:flex;
+  align-items:center;justify-content:center;padding:14px;}
+#veil.hide{display:none;}
+#vin{max-width:400px;width:100%;max-height:96vh;overflow-y:auto;border:2px solid #b967ff;
+  border-radius:8px;padding:14px;font-size:13px;line-height:1.78;background:#12081f;
+  box-shadow:0 0 14px rgba(185,103,255,.55), inset 0 0 12px rgba(1,205,254,.10);}
+#vin h2{font-size:19px;text-align:center;letter-spacing:2px;margin-bottom:10px;color:#ff71ce;
+  text-shadow:0 0 6px rgba(255,113,206,.9),0 0 16px rgba(1,205,254,.6);}
+#vin p{margin-bottom:8px;}
+#vin .rank{font-size:24px;color:#fffb96;text-align:center;letter-spacing:4px;margin:10px 0;
+  text-shadow:0 0 8px rgba(255,251,150,.8),0 0 18px rgba(255,113,206,.6);}
+#vin table{width:100%;font-size:12.5px;border-collapse:collapse;margin:6px 0 10px;}
+#vin td{border-bottom:1px solid #3a2a5e;padding:3px 5px;}
+#vin td:last-child{text-align:right;color:#fffb96;}
+#vin .sp{color:#b967ff;}
+#vin .op{color:#ff9a4a;}
+.big{width:100%;padding:10px;background:#1a0b2e;border:2px solid #01cdfe;border-radius:8px;
+  color:#fffb96;font-size:15px;letter-spacing:3px;cursor:pointer;font-family:inherit;margin-top:8px;
+  box-shadow:0 0 10px rgba(1,205,254,.55);}
+.big:active{background:#3a1a5e;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="win" id="top">
+    <div>あなたの粗利<br><span class="y" id="sc">0万</span></div>
+    <div style="text-align:center;color:#9a9a9a">ターン<br><span id="tn" style="color:#fff">-</span></div>
+    <div class="r">相手のＶＡ金額<br><span class="p" id="va">0万</span></div>
+  </div>
+  <div id="scene"><canvas id="g" width="320" height="260"></canvas></div>
+  <div class="win" id="msg">──</div>
+  <div id="btns" class="off">
+    <div class="bt" id="bPan">👏 パン<small>スペース / J</small></div>
+    <div class="bt" id="bYo">ヨッ！<small>K</small></div>
+    <div class="bt" id="bOye">オーイエー<small>L</small></div>
+  </div>
+</div>
+<div id="veil"><div id="vin"></div></div>
+<div id="crt"></div>
+
+<script>
+"use strict";
+/* =========================================================================
+   木曜日の投資対効果三本締め対決 — 木曜の野望（プロト）
+   OHMAMA SOFT / 木曜日の迷宮 番外。単一HTML・バニラJS・依存なし。
+   -------------------------------------------------------------------------
+   構想：今後、戦いはすべて三本締めで対決する。
+   ・前奏1小節＋パパパン・パパパン・パパパン・パン＋ヨッ！＝1ターン
+   ・間奏1小節（あなたの番！／〈相手〉の番！）をはさんで 交互に 3ターンずつ、計6回
+   ・タイミングが正確なほど こちらは粗利が増え、相手はＶＡ金額が積まれる
+   ・ボタンは パン／ヨッ／オーイエーの3種類（音はチープな8ビット風＋爆発音）
+   ・表現のユニークさ（合いの手・ヤジ）も加点対象
+   ========================================================================= */
+
+/* --- 拍グリッド：BPM115・シャッフル65%（BGMと同一クロック） --- */
+var BPM=115, BEAT=60000/(BPM*2);              // 8分音符（ms）
+var PATU=[0,1,2, 4,5,6, 8,9,10, 12];          // 三本締めのリズム（8分単位）：[パパパン・パパパン][パパパン・パン]
+var YOU=14;                                   // ヨッ！の位置（パターン2小節目の4拍目）
+var TURN8=32;                                 // 1ターン＝4小節［前奏2小節］［パパパン ×2］［パパパン・パン・ヨッ］
+var LEAD8=16;                                 // 前奏・間奏＝2小節（BGMの2小節ループの頭に パターンが乗る）
+var NTURN=6;                                  // 交互に 計6回
+var PITA=100, YOSHI=220, APPR=1300, HITY=200;
+
+/* --- 対戦相手（登場・途中・勝ち負けのセリフ付き） --- */
+var OPPS=[
+  { id:'zenpaku', nm:'ゼンパク男', sigma:125, miss:0.24, beat:'electro', beatNm:'エレクトロ',
+    intro:['「おっ、締め対決かい？　ブロックKの夜で鍛えた 俺の手拍子、見せたるわ」',
+           '（ジョッキ片手に、もう 上機嫌である）'],
+    mid:'ゼンパク男「……あれ？　いまの ずれとった？　よ、酔っとらんよ？」',
+    winln:'ゼンパク男「まだまだ 若いねえ！　罰として 仲見世2軒目、つきあってもらうよ」',
+    loseln:'ゼンパク男「くーっ、完敗だわ。今夜は 俺のおごりだ！　……ウーロンハイで いいら？」' },
+  { id:'shocho', nm:'しょちょう', sigma:70, miss:0.08, beat:'house', beatNm:'ハウス（4つ打ち）',
+    intro:['「三本締めにも 道具の差が出るのかね？　──出んよ。腕だよ」',
+           '（全身マーク＆ロナ。手拍子用の 白手袋まで 新品だ）'],
+    mid:'しょちょう「ふむ……手拍子に 距離計は 使えんか」',
+    winln:'しょちょう「精進したまえ。ゴルフでも 締めでも、いつでも 受けて立つよ」',
+    loseln:'しょちょう「……参った。きみ、練習しとるね。ＲＯＩＣ杯の幹事、頼むよ」' },
+  { id:'shotake', nm:'ショータケさん', sigma:45, miss:0.03, beat:'techno', beatNm:'テクノ（4つ打ち）',
+    intro:['「お久しぶりです。締めの前に……その拍手、あと10パーセント 速くなりませんか」',
+           '（電卓を 置いた。──本気の 構えだ）'],
+    mid:'ショータケ「いまのズレ、ＶＡ提案として 記録しました」',
+    winln:'ショータケ「お見事……いえ、こちらの勝ちですね。ＶＡ金額、いただきます」',
+    loseln:'ショータケ「……完敗です。この勝負、おたくに 嫁がせます」' }
+];
+
+var BATTLE={idx:0, wins:0, log:[]};
+var G=null, cv=null, cx=null, AC=null, REV=null, BGM=null;
+function el(id){ return document.getElementById(id); }
+
+/* =========================================================================
+   音（すべてWebAudio合成・外部ファイルなし）
+   ========================================================================= */
+function initAudio(){
+  if(AC) return;
+  try{ var C=window.AudioContext||window.webkitAudioContext; if(C) AC=new C(); }catch(e){ AC=null; }
+}
+function makeReverb(){
+  if(!AC||REV) return;
+  try{
+    var sr=AC.sampleRate, len=Math.floor(sr*1.4), ch, i;
+    var ir=AC.createBuffer(2,len,sr);
+    for(ch=0;ch<2;ch++){ var d=ir.getChannelData(ch);
+      for(i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.8); }
+    var cv2=AC.createConvolver(); cv2.buffer=ir;
+    var wet=AC.createGain(); wet.gain.value=0.5;
+    cv2.connect(wet); wet.connect(AC.destination);
+    REV=cv2;
+  }catch(e){ REV=null; }
+}
+function clapSound(good,opp){
+  if(!AC) return;
+  try{
+    if(AC.state==='suspended') AC.resume();
+    makeReverb();
+    var sr=AC.sampleRate, len=Math.floor(sr*0.18);
+    var buf=AC.createBuffer(1,len,sr), d=buf.getChannelData(0);
+    var bursts=[0,0.010,0.021,0.033], i, b;
+    for(i=0;i<len;i++){
+      var t=i/sr, a=0;
+      for(b=0;b<bursts.length;b++){ var dt=t-bursts[b];
+        if(dt>=0) a+=Math.exp(-dt/(b<3?0.005:0.055)); }
+      d[i]=(Math.random()*2-1)*a;
+    }
+    var src=AC.createBufferSource(); src.buffer=buf;
+    var hp=AC.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=400;
+    var bp=AC.createBiquadFilter(); bp.type='bandpass';
+    bp.frequency.value=opp?900:(good?1500:750); bp.Q.value=0.9;
+    var pk=AC.createBiquadFilter(); pk.type='peaking';
+    pk.frequency.value=2400; pk.gain.value=6; pk.Q.value=1.5;
+    var gn=AC.createGain(); gn.gain.value=opp?0.6:(good?0.9:0.5);
+    src.connect(hp); hp.connect(bp); bp.connect(pk); pk.connect(gn);
+    gn.connect(AC.destination);
+    if(REV) gn.connect(REV);
+    src.start();
+  }catch(e){}
+}
+function yoSound(low){
+  if(!AC) return;
+  try{
+    var t=AC.currentTime;
+    var o=AC.createOscillator(), f=AC.createBiquadFilter(), g=AC.createGain();
+    o.type='sawtooth';
+    var b=low?170:220;
+    o.frequency.setValueAtTime(b,t);
+    o.frequency.exponentialRampToValueAtTime(b*1.5,t+0.06);
+    o.frequency.exponentialRampToValueAtTime(b*0.82,t+0.22);
+    f.type='bandpass'; f.frequency.value=low?650:800; f.Q.value=1.2;
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.5,t+0.03);
+    g.gain.exponentialRampToValueAtTime(0.001,t+0.25);
+    o.connect(f); f.connect(g); g.connect(AC.destination);
+    if(REV) g.connect(REV);
+    o.start(t); o.stop(t+0.28);
+  }catch(e){}
+}
+function oyeSound(){
+  /* 「オー・イエー」：2音節の チープな8ビット声 */
+  if(!AC) return;
+  try{
+    var t=AC.currentTime, j;
+    var syl=[{at:0,   f0:200, f1:270, dur:0.13},
+             {at:0.15,f0:300, f1:210, dur:0.22}];
+    for(j=0;j<syl.length;j++){
+      var s=syl[j];
+      var o=AC.createOscillator(), f=AC.createBiquadFilter(), g=AC.createGain();
+      o.type='square';
+      o.frequency.setValueAtTime(s.f0,t+s.at);
+      o.frequency.exponentialRampToValueAtTime(s.f1,t+s.at+s.dur);
+      f.type='bandpass'; f.frequency.value=950; f.Q.value=1.1;
+      g.gain.setValueAtTime(0.0001,t+s.at);
+      g.gain.exponentialRampToValueAtTime(0.32,t+s.at+0.03);
+      g.gain.exponentialRampToValueAtTime(0.001,t+s.at+s.dur+0.05);
+      o.connect(f); f.connect(g); g.connect(AC.destination);
+      if(REV) g.connect(REV);
+      o.start(t+s.at); o.stop(t+s.at+s.dur+0.08);
+    }
+  }catch(e){}
+}
+function boomSound(){
+  /* 爆発音（チープな8ビット風） */
+  if(!AC) return;
+  try{
+    var t=AC.currentTime;
+    var sr=AC.sampleRate, len=Math.floor(sr*0.5);
+    var buf=AC.createBuffer(1,len,sr), d=buf.getChannelData(0), i;
+    for(i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,1.4);
+    var src=AC.createBufferSource(); src.buffer=buf;
+    var lp=AC.createBiquadFilter(); lp.type='lowpass';
+    lp.frequency.setValueAtTime(1400,t);
+    lp.frequency.exponentialRampToValueAtTime(160,t+0.45);
+    var g=AC.createGain(); g.gain.setValueAtTime(0.9,t);
+    g.gain.exponentialRampToValueAtTime(0.001,t+0.5);
+    src.connect(lp); lp.connect(g); g.connect(AC.destination);
+    src.start(t);
+    var o=AC.createOscillator(), g2=AC.createGain();
+    o.type='square';
+    o.frequency.setValueAtTime(110,t);
+    o.frequency.exponentialRampToValueAtTime(28,t+0.4);
+    g2.gain.setValueAtTime(0.5,t); g2.gain.exponentialRampToValueAtTime(0.001,t+0.42);
+    o.connect(g2); g2.connect(AC.destination);
+    o.start(t); o.stop(t+0.45);
+  }catch(e){}
+}
+/* BGM：ステージごとにビートが異なる（2小節ループ・WebAudio合成）
+   'electro'＝バンバータ風・シャッフル65% ／ 'house'＝キック4つ打ちハウス ／
+   'techno'＝ダークな4つ打ちテクノ */
+function bgmStart(totalMs, at, style){
+  if(!AC) return;
+  try{
+    if(AC.state==='suspended') AC.resume();
+    style=style||'electro';
+    var t0=(at!==undefined)?at:AC.currentTime+0.05;
+    var s16=BEAT/2000;
+    var master=AC.createGain(); master.gain.value=0.30; master.connect(AC.destination);
+    BGM=master;
+    function fq(m){ return 440*Math.pow(2,(m-69)/12); }
+    var hb=AC.createBuffer(1,Math.floor(AC.sampleRate*0.15),AC.sampleRate);
+    var hd=hb.getChannelData(0), i;
+    for(i=0;i<hd.length;i++) hd[i]=(Math.random()*2-1);
+    function noiseAt(t,dur,hpf,vol){
+      var s=AC.createBufferSource(); s.buffer=hb;
+      var f=AC.createBiquadFilter(); f.type='highpass'; f.frequency.value=hpf;
+      var g=AC.createGain();
+      g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+      s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t+dur+0.02);
+    }
+    function kick(t,hard){
+      var o=AC.createOscillator(), g=AC.createGain();
+      o.type='sine';
+      o.frequency.setValueAtTime(hard?170:160,t);
+      o.frequency.exponentialRampToValueAtTime(hard?40:44,t+0.11);
+      g.gain.setValueAtTime(1.0,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.20);
+      o.connect(g); g.connect(master); o.start(t); o.stop(t+0.22);
+    }
+    function snare(t,vol){
+      noiseAt(t,0.09,1200,vol||0.35);
+      var o=AC.createOscillator(), g=AC.createGain();
+      o.type='triangle'; o.frequency.value=185;
+      g.gain.setValueAtTime((vol||0.35)*0.7,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.08);
+      o.connect(g); g.connect(master); o.start(t); o.stop(t+0.1);
+    }
+    function bass(t,m,dur,vol){
+      var o=AC.createOscillator(), f=AC.createBiquadFilter(), g=AC.createGain();
+      o.type='square'; o.frequency.value=fq(m-12);
+      f.type='lowpass'; f.frequency.value=800;
+      g.gain.setValueAtTime(vol||0.34,t); g.gain.exponentialRampToValueAtTime(0.02,t+dur*0.85);
+      o.connect(f); f.connect(g); g.connect(master); o.start(t); o.stop(t+dur*0.9);
+    }
+    function stab(t,ns,vol,dur){
+      var j;
+      for(j=0;j<ns.length;j++){
+        var o=AC.createOscillator(), g=AC.createGain();
+        o.type='sawtooth'; o.frequency.value=fq(ns[j])*(1+(j-1)*0.004);
+        g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+        o.connect(g); g.connect(master); o.start(t); o.stop(t+dur+0.02);
+      }
+    }
+    /* エレクトロ用パターン */
+    var KICK=[1,0,0,1, 0,0,1,0, 0,0,1,0, 0,0,0,0,  1,0,0,1, 0,0,1,0, 0,0,1,0, 0,0,1,0];
+    var SNR =[0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0,  0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,1];
+    var BASS8=[45,45,-1,45, -1,45,-1,43, 45,45,-1,45, 48,-1,43,-1];
+    /* ハウス用ベース（裏打ちで ポンプする） */
+    var HBASS8=[-1,45,-1,45, -1,45,-1,45, -1,43,-1,43, -1,45,-1,48];
+    var SW=(style==='electro')?0.65:(style==='house'?0.56:0.5);
+    var e8=s16*2, n16=Math.floor(totalMs/1000/s16);
+    for(i=0;i<n16;i++){
+      var t=t0+Math.floor(i/2)*e8+(i%2)*SW*e8, st=i%32, bm;
+      if(style==='house'){
+        /* ── キック4つ打ちのハウスビート ── */
+        if(st%4===0) kick(t,false);                     // 4つ打ち
+        if(st%8===4) noiseAt(t,0.12,1600,0.30);         // 2・4拍のクラップ系
+        if(st%4===2) noiseAt(t,0.12,7000,0.22);         // 裏拍のオープンハット（シャンシャン）
+        else if(st%2===1) noiseAt(t,0.03,9000,0.10);
+        if(i%2===1){ bm=HBASS8[(Math.floor(i/2))%16];   // 裏打ちベース
+          if(bm>=0) bass(t,bm,BEAT/1000,0.30); }
+        if(st===6||st===14||st===22||st===30)           // 裏のピアノ風スタブ（明るいメジャー）
+          stab(t,[60,64,67],0.10,0.16);
+      }else if(style==='techno'){
+        /* ── ダークな4つ打ちテクノ ── */
+        if(st%4===0) kick(t,true);
+        if(st%8===4) snare(t,0.22);
+        noiseAt(t,0.03,9500,(st%4===2)?0.16:0.08);      // 16分の刻み
+        if(st%4!==0) bass(t,33+((st%16===14)?3:0),s16,0.20);  // 地を這う16分ベース
+        if(st===0)  stab(t,[57,60],0.14,0.30);          // 暗い5度スタブ
+        if(st===24) stab(t,[55,58],0.10,0.20);
+      }else{
+        /* ── バンバータ風エレクトロ（従来） ── */
+        if(KICK[st]) kick(t,false);
+        if(SNR[st])  snare(t);
+        if(st%4===2) noiseAt(t,0.10,8000,0.18);
+        else         noiseAt(t,0.04,9000,(st%2===0)?0.16:0.11);
+        if(i%2===0){ bm=BASS8[(i/2)%16]; if(bm>=0) bass(t,bm,BEAT/1000); }
+        if(st===0) stab(t,[57,60,64],0.16,0.28);
+      }
+    }
+  }catch(e){}
+}
+function bgmStop(){
+  if(BGM){ try{ BGM.gain.setTargetAtTime(0.0001,AC.currentTime,0.12); }catch(e){} BGM=null; }
+}
+
+/* =========================================================================
+   バトル状態
+   ========================================================================= */
+function newBattle(opp){
+  var notes=[], marks=[], k, i;
+  var menu=['beer','ramen','meat','sake'];
+  for(k=0;k<NTURN;k++){
+    var own=(k%2===0), base=k*TURN8;
+    /* 掛け声は 前奏2小節の 2小節目の頭（叩き始めの 1小節前） */
+    marks.push({t:Math.round((base+8)*BEAT), dur:1800, call:true,
+                txt: own?'あなたの番！':(opp.nm+'の番！'), own:own});
+    for(i=0;i<PATU.length;i++){
+      notes.push({t:Math.round((base+LEAD8+PATU[i])*BEAT), turn:k, own:own, idx:i, kind:'pan',
+                  judge:null, off:0, icon:(i===PATU.length-1)?'gold':menu[Math.floor(Math.random()*menu.length)]});
+    }
+    notes.push({t:Math.round((base+LEAD8+YOU)*BEAT), turn:k, own:own, idx:PATU.length, kind:'yo',
+                judge:null, off:0, icon:'yo'});
+  }
+  /* 相手の1本目が終わったところで 途中セリフ */
+  marks.push({t:Math.round((TURN8*2+1)*BEAT), mid:true});
+  /* 相手ノーツの ずれ・ミスを 事前ロール（プレッシャーで後から悪化する） */
+  for(i=0;i<notes.length;i++){
+    var n=notes[i];
+    if(!n.own){
+      n.off=Math.round((Math.random()+Math.random()-1)*opp.sigma*1.6);
+      n.roll=Math.random();
+    }
+  }
+  return {opp:opp, t0:0, act0:0, on:false, over:false,
+          notes:notes, marks:marks, endAt:Math.round((NTURN*TURN8+4)*BEAT),
+          ara:0, va:0, pita:0, yoshi:0, miss:0, furai:0,
+          uniq:0, yaji:0, pressure:0, usedPan:false, usedYo:false, usedOye:false,
+          combo:0, maxcombo:0, flash:null, flashT:-999,
+          clapT:-999, oclapT:-999, big:-999, parts:[], boomAt:-999, loser:''};
+}
+function jnow(){
+  return AC ? (AC.currentTime-G.act0)*1000 : (performance.now()-G.t0);
+}
+function curTurn(t){
+  var k=Math.floor(t/(TURN8*BEAT));
+  if(k<0)k=0; if(k>=NTURN)k=NTURN-1;
+  return k;
+}
+function setMsg(s){ var m=el('msg'); if(m) m.textContent=s; }
+function setFlash(txt,c){ G.flash={txt:txt,c:c}; G.flashT=jnow(); }
+function updScore(){
+  el('sc').textContent=G.ara+'万';
+  el('va').textContent=G.va+'万';
+  var k=G.on?curTurn(jnow()):0;
+  el('tn').textContent=G.on?((k+1)+'/'+NTURN):'-';
+}
+
+/* =========================================================================
+   入力（パン／ヨッ／オーイエー）
+   ========================================================================= */
+function judgeNote(n,bd){
+  if(bd<=PITA){ n.judge='pita'; G.pita++; G.ara+=3; G.combo++;
+    setFlash('ピタッ！ +3','#ffe14a'); }
+  else{ n.judge='yoshi'; G.yoshi++; G.ara+=1; G.combo++;
+    setFlash('よし！ +1','#7fd6a2'); }
+  if(G.combo>G.maxcombo) G.maxcombo=G.combo;
+}
+function nearestOwn(t,kind){
+  var best=null, bd=1e9, i, n;
+  for(i=0;i<G.notes.length;i++){
+    n=G.notes[i];
+    if(!n.own||n.judge||n.kind!==kind) continue;
+    var d=Math.abs(t-n.t);
+    if(d<bd){ bd=d; best=n; }
+  }
+  return best&&bd<=YOSHI ? {n:best,bd:bd} : null;
+}
+function adlib(t,kindLabel){
+  /* 表現力加点：ノーツの無い 8分グリッドに 合いの手が乗ったら ユニーク点 */
+  var u=Math.round(t/BEAT), d=Math.abs(t-u*BEAT);
+  if(d>200) return;                                     // ビートに乗ってない
+  var i;
+  for(i=0;i<G.notes.length;i++){
+    if(Math.abs(G.notes[i].t-u*BEAT)<60) return;      // ノーツの上（叩いた後も）はダメ
+  }
+  if(G.uniq>=16){ setFlash('（調子に 乗りすぎだに）','#9a9a9a'); return; }
+  var k=curTurn(t), own=(k%2===0);
+  if(own){ G.uniq+=2; G.ara+=2; setFlash(kindLabel+'　ユニーク！ +2','#c9a6ff'); }
+  else{
+    G.uniq+=1; G.ara+=1; G.yaji++;
+    if(G.pressure<3) G.pressure++;
+    setFlash(kindLabel+'　ヤジが 刺さった！ +1','#c9a6ff');
+    setMsg(G.opp.nm+'「……や、やりにくいな」');
+  }
+  updScore();
+}
+function panBtn(){
+  if(!G||!G.on) return;
+  initAudio();
+  var t=jnow(); G.clapT=t; G.usedPan=true;
+  var k=curTurn(t), own=(k%2===0);
+  var hit=nearestOwn(t,'pan');
+  if(own && hit){ judgeNote(hit.n,hit.bd); clapSound(true); }
+  else if(own){ G.furai++; G.combo=0; setFlash('フライング！','#ff8a7a'); clapSound(false); }
+  else{ clapSound(true); adlib(t,'合いの手'); }
+  updScore();
+}
+function yoBtn(){
+  if(!G||!G.on) return;
+  initAudio();
+  var t=jnow(); G.usedYo=true;
+  var k=curTurn(t), own=(k%2===0);
+  var hit=nearestOwn(t,'yo');
+  yoSound(false);
+  if(own && hit){ judgeNote(hit.n,hit.bd); G.clapT=t; }
+  else adlib(t,'ヨッ！');
+  updScore();
+}
+function oyeBtn(){
+  if(!G||!G.on) return;
+  initAudio();
+  var t=jnow(); G.usedOye=true;
+  oyeSound();
+  adlib(t,'オーイエー');
+}
+
+/* =========================================================================
+   進行
+   ========================================================================= */
+function startBattle(){
+  var opp=OPPS[BATTLE.idx];
+  G=newBattle(opp);
+  el('veil').classList.add('hide');
+  el('btns').className='';
+  setMsg('── '+opp.nm+'との 締め対決、開始！');
+  initAudio(); makeReverb();
+  if(AC){
+    if(AC.state==='suspended') AC.resume();
+    G.act0=AC.currentTime+0.15;
+    bgmStart(G.endAt+800, G.act0, G.opp.beat);
+  }
+  G.t0=performance.now()+(AC?(G.act0-AC.currentTime)*1000:0);
+  G.on=true;
+  requestAnimationFrame(loop);
+}
+function loop(){
+  if(!G||!G.on) return;
+  var t=jnow(), i, n;
+  /* 掛け声マーク（途中セリフ含む） */
+  for(i=0;i<G.marks.length;i++){
+    var mk=G.marks[i];
+    if(!mk.done && t>=mk.t){
+      mk.done=true;
+      if(mk.mid) setMsg(G.opp.mid);
+      else if(mk.call && mk.own) setMsg('あなたの番！　パン と ヨッ！で 決めろ');
+      else if(mk.call) setMsg(G.opp.nm+'の番──よく見とけ。ヤジ（オーイエー）は ビートに乗せろ');
+    }
+  }
+  /* ノーツ処理 */
+  for(i=0;i<G.notes.length;i++){
+    n=G.notes[i];
+    if(n.judge) continue;
+    if(n.own){
+      if(t>n.t+YOSHI){ n.judge='miss'; G.miss++; G.combo=0;
+        setFlash('……手拍子が 抜けた','#9a9a9a'); }
+    }else{
+      /* 相手の自動演奏（事前ロール＋ヤジのプレッシャーで ミス増） */
+      if(t>=n.t+n.off){
+        var mc=G.opp.miss+0.05*G.pressure;
+        if(n.roll<mc){ n.judge='omiss';
+          setFlash('相手：手拍子が 抜けた！','#ff9a4a'); }
+        else{
+          var bd=Math.abs(n.off);
+          if(bd<=PITA){ n.judge='opita'; G.va+=3; setFlash('相手：ピタッ +3','#c9a6ff'); }
+          else if(bd<=YOSHI){ n.judge='oyoshi'; G.va+=1; setFlash('相手：よし +1','#c9a6ff'); }
+          else{ n.judge='omiss'; setFlash('相手：ズレた！','#ff9a4a'); }
+          if(n.kind==='yo') yoSound(true); else clapSound(true,true);
+          G.oclapT=t;
+        }
+        updScore();
+      }
+    }
+  }
+  draw(t);
+  updScore();
+  if(t>=G.endAt){ finishBattle(); return; }
+  requestAnimationFrame(loop);
+}
+function finishBattle(){
+  G.on=false;
+  el('btns').className='off';
+  /* 表現力ボーナス：3種類のボタンを 使い分けたら */
+  var varie=(G.usedPan&&G.usedYo&&G.usedOye)?3:0;
+  if(varie){ G.ara+=varie; }
+  var win=(G.ara>G.va), drawn=(G.ara===G.va);
+  G.loser=win?'opp':'me';
+  BATTLE.log.push({nm:G.opp.nm, ara:G.ara, va:G.va, win:win&&!drawn});
+  if(win&&!drawn) BATTLE.wins++;
+  /* 敗者が 爆発する（8ビット爆発音＋破片） */
+  G.big=jnow(); G.parts=makeBurst(G.loser==='me'?52:268, 40);
+  boomSound();
+  updScore();
+  var self=G;
+  setTimeout(function(){ if(G===self) battleResult(win,drawn,varie); }, 1200);
+  /* 爆発の間も 描画だけ回す */
+  (function afterglow(){
+    if(!G||G.on) return;
+    draw(jnow());
+    if(jnow()-G.big<1100) requestAnimationFrame(afterglow);
+  })();
+  bgmStop();
+}
+function battleResult(win,drawn,varie){
+  var h='';
+  h+='<h2>'+(drawn?'引 き 分 け':(win?'勝 利 ！':'敗 北 …'))+'</h2>';
+  h+='<table>';
+  h+='<tr><td>あなたの粗利</td><td>'+G.ara+'万</td></tr>';
+  h+='<tr><td>'+G.opp.nm+'のＶＡ金額</td><td>'+G.va+'万</td></tr>';
+  h+='<tr><td>ピタッ／よし</td><td>'+G.pita+' ／ '+G.yoshi+'</td></tr>';
+  h+='<tr><td>ユニーク加点</td><td>'+G.uniq+(varie?('＋表現力'+varie):'')+'</td></tr>';
+  h+='<tr><td>ヤジ</td><td>'+G.yaji+' 発</td></tr>';
+  h+='<tr><td>そろった拍手 さいだい</td><td>'+G.maxcombo+' 連</td></tr>';
+  h+='</table>';
+  h+='<p class="op">'+(win?G.opp.loseln:G.opp.winln)+'</p>';
+  if(drawn) h+='<p>──痛み分け。宴会は 続く。</p>';
+  var last=(BATTLE.idx>=OPPS.length-1);
+  if(win){
+    h+='<button class="big" id="nx">'+(last?'けっかはっぴょう':'つぎの相手')+'</button>';
+  }else{
+    /* 負け（引き分け含む）は 再挑戦できる */
+    h+='<button class="big" id="rt">もう一回チャレンジ</button>';
+    h+='<button class="big" id="qt" style="border-color:#ff71ce;box-shadow:0 0 10px rgba(255,113,206,.55)">おわる</button>';
+  }
+  el('vin').innerHTML=h; el('veil').classList.remove('hide');
+  var nx=el('nx');
+  if(nx) nx.onclick=function(){
+    BATTLE.idx++;
+    if(BATTLE.idx>=OPPS.length) finalResult(); else introOpp();
+  };
+  var rt=el('rt');
+  if(rt) rt.onclick=function(){
+    BATTLE.log.pop();                 // 再挑戦：さっきの敗戦は 無かったことにする
+    introOpp();
+  };
+  var qt=el('qt');
+  if(qt) qt.onclick=function(){ finalResult(); };
+}
+function finalResult(){
+  var h='', i, rank;
+  var w=BATTLE.wins;
+  if(w>=3) rank='締 め の 覇 王';
+  else if(w===2) rank='締 め の 達 人';
+  else if(w===1) rank='宴 会 部 長';
+  else rank='修 行 中';
+  h+='<h2>締め対決・全戦終了</h2>';
+  h+='<div class="rank">'+rank+'</div>';
+  h+='<table>';
+  for(i=0;i<BATTLE.log.length;i++){
+    var L=BATTLE.log[i];
+    h+='<tr><td>'+(L.win?'○':'●')+'　'+L.nm+'</td><td>粗利'+L.ara+'万／VA'+L.va+'万</td></tr>';
+  }
+  h+='</table>';
+  h+='<p class="sp">──手拍子の正確さは、段取りの正確さ。締めが そろう会社は、仕事も そろう。……たぶん。</p>';
+  if(w===0) h+='<p class="sp">スポンジマン「拍手の練習、つきあおうか？　……ぼくは 手が スポンジだけど」</p>';
+  h+='<p style="text-align:center;color:#fffb96;margin-top:10px">— 木曜日の投資対効果三本締め対決・完 —</p>';
+  h+='<button class="big" id="ag">もういちど</button>';
+  el('vin').innerHTML=h; el('veil').classList.remove('hide');
+  el('ag').onclick=function(){ BATTLE={idx:0,wins:0,log:[]}; introOpp(); };
+}
+function introOpp(){
+  var opp=OPPS[BATTLE.idx], h='', i;
+  h+='<h2>第'+(BATTLE.idx+1)+'戦</h2>';
+  h+='<canvas id="ic" width="80" height="66" style="width:200px;max-width:60%;display:block;'
+    +'margin:0 auto 4px;image-rendering:pixelated;border:2px solid #444;border-radius:4px"></canvas>';
+  h+='<p style="text-align:center;color:#ff9a4a;font-size:15px;letter-spacing:2px">'+opp.nm+'</p>';
+  h+='<p style="text-align:center;color:#9a9a9a;font-size:10px">STAGE BGM：'+opp.beatNm+'</p>';
+  for(i=0;i<opp.intro.length;i++) h+='<p>'+opp.intro[i]+'</p>';
+  h+='<button class="big" id="go">お手を拝借</button>';
+  el('vin').innerHTML=h; el('veil').classList.remove('hide');
+  /* 紹介キャンバスに 敵キャラを 大きく描く（描画関数は そのまま流用） */
+  var ic=el('ic');
+  if(ic && ic.getContext){
+    var old=cx, vi2;
+    cx=ic.getContext('2d'); cx.imageSmoothingEnabled=false;
+    var sky=['#140a2e','#1d0f3f','#2a1454','#3a1a66','#552178','#7c2a86','#a53a92'];
+    for(vi2=0;vi2<7;vi2++) px(0,vi2*8,80,8,sky[vi2]);
+    cx.fillStyle='#ff9a4a';
+    cx.beginPath(); cx.arc(40,42,18,0,Math.PI*2); cx.fill();                 // レトロ太陽
+    px(18,38,44,2,'#2a1454'); px(18,44,44,3,'#3a1a66'); px(18,51,44,4,'#552178');
+    px(0,55,80,1,'#01cdfe');                                                 // 地平線
+    px(0,56,80,10,'#12081f');
+    cx.strokeStyle='rgba(255,113,206,0.6)'; cx.lineWidth=1;
+    cx.beginPath(); cx.moveTo(0,59); cx.lineTo(80,59); cx.stroke();
+    cx.beginPath(); cx.moveTo(0,63); cx.lineTo(80,63); cx.stroke();
+    drawOpp(opp.id, 22, 10, false);
+    cx=old;
+  }
+  el('go').onclick=function(){ initAudio(); startBattle(); };
+}
+function title(){
+  var h='';
+  h+='<p style="text-align:center;color:#01cdfe;font-size:12px;letter-spacing:4px;margin-bottom:-2px">木 曜 日 の</p>';
+  h+='<h2>投資対効果 三本締め対決</h2>';
+  h+='<p style="text-align:center;color:#b967ff;font-size:10px;letter-spacing:2px;margin-top:-6px">'
+    +'ＲＯＩ　ＳＡＮＢＯＮＪＩＭＥ　ＢＡＴＴＬＥ　’９５</p>';
+  h+='<p style="text-align:center;color:#8a7ab0;font-size:11px">木曜の野望 ─ OHMAMA SOFT</p>';
+  h+='<p>相手と 交互に 三本締め（3ターンずつ・計6回）。正確なほど こちらの<b>粗利</b>が増え、相手には<b>ＶＡ金額</b>が積まれる。</p>';
+  h+='<p style="color:#7fd6a2">👏パンと ヨッ！で 譜面を。<b>オーイエー</b>の合いの手・ヤジは <b>ユニーク加点</b>。</p>';
+  h+='<button class="big" id="st">たいけつ 開始</button>';
+  el('vin').innerHTML=h;
+  el('st').onclick=function(){ initAudio(); BATTLE={idx:0,wins:0,log:[]}; introOpp(); };
+}
+
+/* =========================================================================
+   描画（320×260）
+   ========================================================================= */
+function px(x,y,w,h,c){ cx.fillStyle=c; cx.fillRect(x,y,w,h); }
+function icon(kind,x,y){
+  function q(a,b,w,h,c){ px(x+a,y+b,w,h,c); }
+  if(kind==='beer'){
+    q(-9,-9,16,18,'#ffd24a'); q(-9,-13,16,6,'#ffffff');
+    q(-6,-7,3,13,'#ffe89a'); q(7,-5,5,10,'#c8c8d0');
+  }else if(kind==='gold'){
+    q(-10,-10,18,20,'#ffe14a'); q(-10,-15,18,7,'#ffffff');
+    q(-7,-8,4,15,'#fff2b0'); q(8,-6,5,12,'#ffd24a');
+    q(-14,-16,3,3,'#ffffff'); q(11,-18,3,3,'#ffffff');
+  }else if(kind==='ramen'){
+    q(-11,-2,22,10,'#c83a3a'); q(-8,6,16,3,'#8a2a2a');
+    q(-9,-6,18,5,'#f0ece0'); q(-6,-9,5,3,'#ffb04a'); q(2,-9,5,3,'#7fd6a2');
+    q(-4,-16,2,5,'#9a9a9a'); q(3,-17,2,5,'#9a9a9a');
+  }else if(kind==='meat'){
+    q(-10,-7,15,13,'#8a4a2a'); q(-8,-5,11,6,'#a85a32');
+    q(5,-3,6,5,'#f0ece0'); q(9,-6,4,4,'#f0ece0'); q(9,1,4,4,'#f0ece0');
+  }else if(kind==='sake'){
+    q(-4,-16,8,7,'#f0ece0'); q(-5,-11,10,3,'#e0d8c8');
+    q(-8,-8,15,17,'#f0ece0'); q(-8,-3,15,4,'#5a8ad0');
+    q(8,3,7,6,'#f0ece0'); q(8,3,7,2,'#5a8ad0');
+  }else if(kind==='yo'){
+    q(-12,-10,24,20,'#ff9a4a'); q(-9,-7,18,14,'#17171c');
+    cx.fillStyle='#ffe14a'; cx.font='11px "MS Gothic",monospace';
+    cx.fillText('ヨッ', x-11, y+4);
+  }
+}
+function makeBurst(bx,by){
+  var pal=['#ffe14a','#ff9a4a','#ffffff','#ff5a4a','#c9a6ff'], a=[], i;
+  for(i=0;i<70;i++){
+    var ang=Math.random()*Math.PI*2, sp=1.6+Math.random()*4.6;
+    a.push({x:bx+(Math.random()*20-10), y:by+(Math.random()*24-8),
+            vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp-2.8,
+            s:3+Math.floor(Math.random()*6), c:pal[i%pal.length]});
+  }
+  return a;
+}
+/* ミニキャラ（x,y＝左上。clap＝手を打った直後） */
+function drawMe(x,y,clap){
+  px(x+8,y,20,8,'#2a2a32');                          // 髪
+  px(x+9,y+7,18,13,'#f2cda2');                       // 顔
+  px(x+12,y+11,4,3,'#2a1a12'); px(x+21,y+11,4,3,'#2a1a12');
+  px(x+15,y+16,7,2,'#8a5a4a');
+  px(x+5,y+20,26,20,'#2a3a54');                      // スーツ
+  px(x+15,y+20,6,7,'#ffffff'); px(x+16,y+22,4,9,'#c83a3a');
+  if(clap){
+    px(x+10,y+26,7,9,'#f2cda2'); px(x+19,y+26,7,9,'#f2cda2');   // 打った手
+    px(x+2,y+22,4,4,'#ffe14a'); px(x+30,y+22,4,4,'#ffe14a');
+  }else{
+    px(x,y+22,6,13,'#2a3a54'); px(x+30,y+22,6,13,'#2a3a54');    // 腕
+  }
+  px(x+8,y+40,8,5,'#17171c'); px(x+20,y+40,8,5,'#17171c');
+}
+function drawOpp(id,x,y,clap){
+  if(id==='zenpaku'){
+    px(x+8,y,20,7,'#2a2a32');
+    px(x+6,y+4,24,5,'#c83a3a');                      // ネクタイはちまき
+    px(x+9,y+8,18,13,'#f2a08a');                     // 赤ら顔
+    px(x+12,y+12,4,2,'#2a1a12'); px(x+21,y+12,4,2,'#2a1a12');
+    px(x+14,y+16,8,3,'#5a1408');
+    px(x+5,y+21,26,19,'#3a3a4a');
+    px(x+15,y+21,6,9,'#ffffff');
+    if(clap){ px(x+10,y+26,7,9,'#f2cda2'); px(x+19,y+26,7,9,'#f2cda2');
+      px(x+2,y+22,4,4,'#ffe14a'); px(x+30,y+22,4,4,'#ffe14a'); }
+    else{ px(x-2,y+18,8,7,'#ffd24a'); px(x-2,y+15,8,4,'#ffffff');  // ジョッキ
+      px(x+30,y+22,6,13,'#3a3a4a'); }
+    px(x+8,y+39,8,5,'#17171c'); px(x+20,y+39,8,5,'#17171c');
+  }else if(id==='shocho'){
+    px(x+7,y,22,7,'#17171c'); px(x+4,y+5,28,4,'#17171c');   // 黒キャップ
+    px(x+13,y+1,10,4,'#ffffff');
+    px(x+9,y+9,18,12,'#f2cda2');
+    px(x+10,y+12,7,4,'#17171c'); px(x+19,y+12,7,4,'#17171c'); // サングラス
+    px(x+15,y+17,7,2,'#8a5a4a');
+    px(x+5,y+21,26,19,'#17171c');                    // マーク＆ロナ
+    px(x+8,y+24,5,5,'#ffffff'); px(x+23,y+24,5,5,'#ffffff');
+    px(x+15,y+28,6,6,'#ffd24a');
+    if(clap){ px(x+10,y+26,7,9,'#f2cda2'); px(x+19,y+26,7,9,'#f2cda2');
+      px(x+2,y+22,4,4,'#ffe14a'); px(x+30,y+22,4,4,'#ffe14a'); }
+    else{ px(x+31,y+2,4,34,'#c8c8d0'); px(x+28,y-4,10,7,'#8ad0ff');  // ドライバー
+      px(x,y+22,6,13,'#17171c'); }
+    px(x+8,y+40,8,5,'#ff5a4a'); px(x+20,y+40,8,5,'#ff5a4a');
+  }else{ /* shotake */
+    px(x+8,y,20,8,'#2a2a32');
+    px(x+9,y+7,18,13,'#f2cda2');
+    px(x+10,y+11,7,4,'#8ad0ff'); px(x+19,y+11,7,4,'#8ad0ff'); // めがね
+    px(x+15,y+17,7,2,'#8a3a3a');
+    px(x+5,y+20,26,20,'#2a3a54');
+    px(x+15,y+20,6,7,'#ffffff'); px(x+16,y+22,4,9,'#c83a3a');
+    if(clap){ px(x+10,y+26,7,9,'#f2cda2'); px(x+19,y+26,7,9,'#f2cda2');
+      px(x+2,y+22,4,4,'#ffe14a'); px(x+30,y+22,4,4,'#ffe14a'); }
+    else{ px(x-4,y+24,9,12,'#c8c8d0'); px(x-2,y+26,5,3,'#2a3a2a'); // 電卓
+      px(x+30,y+22,6,13,'#2a3a54'); }
+    px(x+8,y+40,8,5,'#17171c'); px(x+20,y+40,8,5,'#17171c');
+  }
+}
+/* ── ヴェイパーウェイヴ背景 ── */
+var SPARKS=[{x:22,y:34,p:0},{x:92,y:18,p:1.4},{x:130,y:52,p:2.7},{x:196,y:26,p:0.8},
+            {x:232,y:58,p:2.1},{x:300,y:36,p:3.4},{x:60,y:96,p:1.1},{x:262,y:104,p:4.2},
+            {x:110,y:120,p:2.9},{x:214,y:136,p:0.4}];
+function sparkle(x,y,a,c){
+  cx.save(); cx.globalAlpha=a;
+  px(x-3,y,7,1,c); px(x,y-3,1,7,c); px(x-1,y-1,3,3,'#ffffff');
+  cx.restore();
+}
+function palm(x,y){
+  px(x-2,y-24,4,24,'#12081f');                          // 幹
+  px(x-14,y-28,12,3,'#12081f'); px(x-16,y-26,6,3,'#12081f');   // 葉
+  px(x+2,y-28,12,3,'#12081f');  px(x+10,y-26,6,3,'#12081f');
+  px(x-10,y-33,8,3,'#12081f');  px(x+2,y-33,8,3,'#12081f');
+  px(x-2,y-31,4,4,'#12081f');
+}
+function drawVapor(t){
+  /* グラデーションの空 */
+  var sky=['#0d0621','#140a2e','#1d0f3f','#2a1454','#3a1a66','#552178','#7c2a86','#a53a92'];
+  var i;
+  for(i=0;i<8;i++) px(0,i*26,320,26,sky[i]);
+  /* 縞入りのレトロ太陽 */
+  cx.save();
+  var gr=cx.createLinearGradient(0,110,0,204);
+  gr.addColorStop(0,'#fffb96'); gr.addColorStop(0.55,'#ff9a4a'); gr.addColorStop(1,'#ff71ce');
+  cx.fillStyle=gr;
+  cx.beginPath(); cx.arc(160,176,52,0,Math.PI*2); cx.fill();
+  cx.restore();
+  px(96,148,128,3,'#2a1454'); px(96,160,128,4,'#3a1a66');       // 太陽の縞
+  px(96,174,128,5,'#552178'); px(96,190,128,7,'#7c2a86');
+  /* 地平線と パースグリッド */
+  px(0,203,320,2,'#01cdfe');
+  px(0,205,320,55,'#12081f');
+  cx.save();
+  cx.strokeStyle='rgba(255,113,206,0.75)'; cx.lineWidth=1;
+  var ys=[209,214,220,228,238,250], j;
+  for(j=0;j<ys.length;j++){ cx.beginPath(); cx.moveTo(0,ys[j]); cx.lineTo(320,ys[j]); cx.stroke(); }
+  cx.strokeStyle='rgba(255,113,206,0.45)';
+  for(j=-5;j<=5;j++){ cx.beginPath(); cx.moveTo(160,205); cx.lineTo(160+j*64,262); cx.stroke(); }
+  cx.restore();
+  /* パームツリーの シルエット */
+  palm(20,204); palm(300,204);
+  /* きらめき */
+  var pal=['#01cdfe','#ff71ce','#fffb96'];
+  for(i=0;i<SPARKS.length;i++){
+    var s=SPARKS[i];
+    var a=0.2+0.8*Math.abs(Math.sin(t/420+s.p));
+    sparkle(s.x,s.y,a,pal[i%3]);
+  }
+}
+
+function draw(t){
+  var LX=160, i, n;
+  var k=curTurn(t), own=(k%2===0);
+  drawVapor(t);
+
+  /* 手番ネオンスポット（自分＝シアン／相手＝ピンク） */
+  if(G.on){
+    cx.save(); cx.globalAlpha=0.16;
+    px(own?18:238, 8, 64, 56, own?'#01cdfe':'#ff71ce');
+    cx.restore();
+  }
+  /* キャラ（自分＝左／相手＝右） */
+  drawMe(34,14, t-G.clapT<130);
+  drawOpp(G.opp.id, 250,14, t-G.oclapT<130);
+  cx.font='10px "MS Gothic",monospace';
+  cx.fillStyle=own?'#01cdfe':'#8a7ab0';
+  cx.fillText('あなた', 37, 70);
+  cx.fillStyle=own?'#8a7ab0':'#ff71ce';
+  cx.fillText(G.opp.nm, 320-8-G.opp.nm.length*10, 70);
+
+  /* ターン進行（6つのネオンドット） */
+  for(i=0;i<NTURN;i++){
+    var done=(t>=(i+1)*TURN8*BEAT);
+    var cur=(i===k&&G.on&&t<NTURN*TURN8*BEAT);
+    px(112+i*17, 6, 12, 8, done?((i%2===0)?'#05ffa1':'#b967ff'):(cur?'#fffb96':'#2a1a4a'));
+  }
+
+  /* 落下レーンと 判定ライン（ネオン） */
+  px(LX-39,16,1,230,'rgba(1,205,254,0.3)'); px(LX+38,16,1,230,'rgba(1,205,254,0.3)');
+  px(LX-36,16,2,230,'#01cdfe'); px(LX+34,16,2,230,'#01cdfe');
+  px(LX-44,HITY-4,88,1,'rgba(255,113,206,0.5)'); px(LX-44,HITY+3,88,1,'rgba(255,113,206,0.5)');
+  px(LX-44,HITY-1,88,3,'#ff71ce');
+  px(LX-44,HITY-14,2,28,'#b967ff'); px(LX+42,HITY-14,2,28,'#b967ff');
+
+  /* 掛け声（あなたの番！／〈相手〉の番！） */
+  for(i=0;i<G.marks.length;i++){
+    var mk=G.marks[i];
+    if(mk.call && t>=mk.t && t<mk.t+(mk.dur||1500)){
+      cx.fillStyle=mk.own?'#ffe14a':'#ff9a4a'; cx.font='15px "MS Gothic",monospace';
+      var wd=cx.measureText(mk.txt).width;
+      cx.fillText(mk.txt, 160-wd/2, 96);
+    }
+  }
+
+  /* 流れてくるノーツ（相手ターンは 半透明で自動） */
+  for(i=0;i<G.notes.length;i++){
+    n=G.notes[i];
+    if(n.judge && n.judge!=='miss') continue;
+    var dt=n.t-t;
+    if(dt>APPR || dt<-YOSHI) continue;
+    var y=HITY-(dt/APPR)*(HITY-6);
+    cx.save(); cx.globalAlpha=n.own?1:0.55;
+    icon(n.icon, LX, Math.round(y));
+    cx.restore();
+  }
+
+  /* 判定の文字 */
+  if(G.flash && t-G.flashT<650){
+    cx.fillStyle=G.flash.c; cx.font='14px "MS Gothic",monospace';
+    var w2=cx.measureText(G.flash.txt).width;
+    cx.fillText(G.flash.txt, 160-w2/2, HITY-30);
+  }
+
+  /* 敗者の爆発（撃破演出の流用）＋白フラッシュ */
+  var age=t-G.big;
+  if(G.parts.length && age<1100){
+    var al=Math.max(0,1-age/1000);
+    cx.save(); cx.globalAlpha=al;
+    for(i=0;i<G.parts.length;i++){
+      var p=G.parts[i];
+      p.x+=p.vx; p.y+=p.vy; p.vy+=0.20; p.s=Math.max(1,p.s-0.045);
+      px(Math.round(p.x),Math.round(p.y),Math.round(p.s),Math.round(p.s),p.c);
+    }
+    cx.restore();
+  }else if(G.parts.length && age>=1100){ G.parts=[]; }
+  if(age>=0 && age<350){
+    cx.save(); cx.globalAlpha=0.9*(1-age/350);
+    cx.fillStyle='#ffffff'; cx.fillRect(0,0,320,260); cx.restore();
+  }
+}
+
+/* =========================================================================
+   起動
+   ========================================================================= */
+if(typeof document!=='undefined' && document.getElementById){
+  cv=el('g'); cx=cv.getContext('2d'); cx.imageSmoothingEnabled=false;
+  el('bPan').addEventListener('pointerdown', function(e){ e.preventDefault(); panBtn(); });
+  el('bYo').addEventListener('pointerdown', function(e){ e.preventDefault(); yoBtn(); });
+  el('bOye').addEventListener('pointerdown', function(e){ e.preventDefault(); oyeBtn(); });
+  document.addEventListener('keydown', function(e){
+    if(e.repeat) return;
+    if(e.code==='Space'||e.code==='KeyJ'){ e.preventDefault(); panBtn(); }
+    else if(e.code==='KeyK'){ e.preventDefault(); yoBtn(); }
+    else if(e.code==='KeyL'){ e.preventDefault(); oyeBtn(); }
+  });
+  title();
+}
+</script>
+</body>
+</html>
