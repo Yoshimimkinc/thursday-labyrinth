@@ -111,15 +111,28 @@ var OPPS=[
     mid:'タツジン「ここで ポインターを 一周 回すのが、聴衆を 起こすコツです」',
     winln:'タツジン「発表も 締めも、場数ですよ 場数。──いい拍手でしたけどね」',
     loseln:'タツジン「……お見事。来期の発表資料に、あなたの締めを 引用させてください」' },
-  { id:'iincho', nm:'ジッコウイインチョー', sigma:45, miss:0.03, beat:'techno', beatNm:'テクノ（4つ打ち）',
-    intro:['「改善活動大会、最終演目──締めの部を 開催します」',
-           '「──手拍子にも、効果金額を 出してもらいますよ」（腕章が きらりと 光った）'],
-    mid:'イインチョー「いまのズレ、改善提案書に 書いておきます。期限は 今週中」',
-    winln:'イインチョー「効果金額 不足。判定──来期、再発表です」',
-    loseln:'イインチョー「……満点です。来年の大会の締め、お願いします」' }
+  { id:'jirei', nm:'ショナイカイゼンジレイ', sigma:45, miss:0.03, beat:'techno', beatNm:'テクノ（4つ打ち）',
+    intro:['「わたしは 社内改善事例。効果金額・年間数百万──毎年 発表される、伝説の事例である」',
+           '（Ｂｅｆｏｒｅ／Ａｆｔｅｒの写真が、ひとりでに めくれた）'],
+    mid:'ジレイ「いまのズレ……Ｂｅｆｏｒｅに 分類した」',
+    winln:'ジレイ「横展開 ならず。──来期も、わたしが 発表される」',
+    loseln:'ジレイ「……見事な Ａｆｔｅｒだ。おまえの締めを、事例に 登録する」' }
 ];
 
-var BATTLE={idx:0, wins:0, log:[]};
+/* --- 会場ハプニング（報告会あるある。1バトルに2回、間奏で起きる） --- */
+var HAPPEN=[
+  {id:'mic', fx:'shake',
+   txt:'バリバリッ！──声が 大きすぎて、マイクが 割れた！'},
+  {id:'dodgers', fx:'pressure',
+   txt:'……どこかから ドジャース戦の実況が。Ｔｅａｍｓの誰か、マイク入っとるぞ（相手が 気にしとる）'},
+  {id:'sleep', fx:'',
+   txt:'客席から、規則正しい寝息が 聞こえはじめた。──午後の部の 宿命だら'},
+  {id:'photo', fx:'',
+   txt:'パシャッ……「会場内の撮影は ご遠慮くださーい！」（──海外の展示会なら OKなのに）'},
+  {id:'erai', fx:'ara2',
+   txt:'いちばん偉い人が、あいさつのあと 速攻で退出していった。──会場が ゆるんだ（粗利 +2）'}
+];
+var BATTLE={idx:0, wins:0, log:[], hapUsed:[]};
 var G=null, cv=null, cx=null, AC=null, REV=null, BGM=null;
 function el(id){ return document.getElementById(id); }
 
@@ -355,6 +368,17 @@ function newBattle(opp){
   }
   /* 相手の1本目が終わったところで 途中セリフ */
   marks.push({t:Math.round((TURN8*2+1)*BEAT), mid:true});
+  /* 会場ハプニング×2（3・5ターン目の 間奏で。全5種を使い回す） */
+  if(!BATTLE.hapUsed) BATTLE.hapUsed=[];
+  var hk;
+  for(hk=0;hk<2;hk++){
+    var pool=[], hj;
+    for(hj=0;hj<HAPPEN.length;hj++) if(BATTLE.hapUsed.indexOf(HAPPEN[hj].id)<0) pool.push(HAPPEN[hj]);
+    if(!pool.length){ BATTLE.hapUsed=[]; pool=HAPPEN.slice(); }
+    var ev=pool[Math.floor(Math.random()*pool.length)];
+    BATTLE.hapUsed.push(ev.id);
+    marks.push({t:Math.round((TURN8*(hk===0?2:4)+2)*BEAT), hap:ev});
+  }
   /* 相手ノーツの ずれ・ミスを 事前ロール（プレッシャーで後から悪化する） */
   for(i=0;i<notes.length;i++){
     var n=notes[i];
@@ -368,7 +392,7 @@ function newBattle(opp){
           ara:0, va:0, pita:0, yoshi:0, miss:0, furai:0,
           uniq:0, yaji:0, pressure:0, usedPan:false, usedYo:false, usedOye:false,
           combo:0, maxcombo:0, flash:null, flashT:-999,
-          clapT:-999, oclapT:-999, big:-999, parts:[], boomAt:-999, loser:''};
+          clapT:-999, oclapT:-999, big:-999, parts:[], boomAt:-999, loser:'', miniF:-999};
 }
 function jnow(){
   return AC ? (AC.currentTime-G.act0)*1000 : (performance.now()-G.t0);
@@ -484,6 +508,12 @@ function loop(){
     if(!mk.done && t>=mk.t){
       mk.done=true;
       if(mk.mid) setMsg(G.opp.mid);
+      else if(mk.hap){
+        setMsg('── '+mk.hap.txt);
+        if(mk.hap.fx==='pressure' && G.pressure<3) G.pressure++;
+        else if(mk.hap.fx==='ara2'){ G.ara+=2; updScore(); }
+        else if(mk.hap.fx==='shake'){ G.miniF=t; }
+      }
       else if(mk.call && mk.own) setMsg('あなたの番！　パン と ヨッ！で 決めろ');
       else if(mk.call) setMsg(G.opp.nm+'の番──よく見とけ。ヤジ（オーイエー）は ビートに乗せろ');
     }
@@ -597,7 +627,7 @@ function finalResult(){
   h+='<p style="text-align:center;color:#fffb96;margin-top:10px">— 木曜日の投資対効果三本締め対決・完 —</p>';
   h+='<button class="big" id="ag">もういちど</button>';
   el('vin').innerHTML=h; el('veil').classList.remove('hide');
-  el('ag').onclick=function(){ BATTLE={idx:0,wins:0,log:[]}; introOpp(); };
+  el('ag').onclick=function(){ BATTLE={idx:0,wins:0,log:[],hapUsed:[]}; introOpp(); };
 }
 function introOpp(){
   var opp=OPPS[BATTLE.idx], h='', i;
@@ -615,11 +645,16 @@ function introOpp(){
   if(ic && ic.getContext){
     var old=cx, vi2;
     cx=ic.getContext('2d'); cx.imageSmoothingEnabled=false;
+    var p0=Math.min(1,BATTLE.idx/OPPS.length);                               // 戦が進むほど 暮れる
     var sky=['#140a2e','#1d0f3f','#2a1454','#3a1a66','#552178','#7c2a86','#a53a92'];
-    for(vi2=0;vi2<7;vi2++) px(0,vi2*8,80,8,sky[vi2]);
+    for(vi2=0;vi2<7;vi2++) px(0,vi2*8,80,8,lerpC(sky[vi2],'#05030f',p0*0.85));
+    if(p0>0.3){ px(14,8,2,2,'#ffffff'); px(58,14,2,2,'#ffffff'); px(34,5,2,2,'#ffffff'); }
     cx.fillStyle='#ff9a4a';
-    cx.beginPath(); cx.arc(40,42,18,0,Math.PI*2); cx.fill();                 // レトロ太陽
-    px(18,38,44,2,'#2a1454'); px(18,44,44,3,'#3a1a66'); px(18,51,44,4,'#552178');
+    var sy0=42+Math.round(p0*18);
+    cx.beginPath(); cx.arc(40,sy0,18,0,Math.PI*2); cx.fill();                // 沈みかけの太陽
+    px(18,sy0-4,44,2,lerpC('#2a1454','#05030f',p0*0.85));
+    px(18,sy0+2,44,3,lerpC('#3a1a66','#05030f',p0*0.85));
+    px(18,sy0+9,44,4,lerpC('#552178','#05030f',p0*0.85));
     px(0,55,80,1,'#01cdfe');                                                 // 地平線
     px(0,56,80,10,'#12081f');
     cx.strokeStyle='rgba(255,113,206,0.6)'; cx.lineWidth=1;
@@ -642,7 +677,7 @@ function title(){
   h+='<p style="color:#7fd6a2">👏パンと ヨッ！で 譜面を。<b>オーイエー</b>の合いの手・ヤジは <b>ユニーク加点</b>。</p>';
   h+='<button class="big" id="st">たいけつ 開始</button>';
   el('vin').innerHTML=h;
-  el('st').onclick=function(){ initAudio(); BATTLE={idx:0,wins:0,log:[]}; introOpp(); };
+  el('st').onclick=function(){ initAudio(); BATTLE={idx:0,wins:0,log:[],hapUsed:[]}; introOpp(); };
 }
 
 /* =========================================================================
@@ -729,21 +764,21 @@ function drawOpp(id,x,y,clap){
       px(x+29,y+38,8,2,'#ff5a4a'); px(x-4,y+26,6,2,'#ff5a4a');       // 赤い光点
       px(x,y+22,6,13,'#4a3a6a'); }
     px(x+8,y+40,8,5,'#17171c'); px(x+20,y+40,8,5,'#17171c');
-  }else{ /* iincho：実行委員長（腕章・クリップボード） */
-    px(x+8,y,20,8,'#2a2a32');
-    px(x+9,y+7,18,13,'#f2cda2');
-    px(x+11,y+11,5,2,'#17171c'); px(x+20,y+11,5,2,'#17171c'); // 太い眉
-    px(x+12,y+13,4,3,'#2a1a12'); px(x+21,y+13,4,3,'#2a1a12');
-    px(x+15,y+18,7,2,'#6a3a3a');                     // への字口
-    px(x+5,y+20,26,20,'#3a3a44');                    // グレーのスーツ
-    px(x+15,y+20,6,8,'#ffffff'); px(x+16,y+22,4,9,'#b967ff');
-    px(x+5,y+24,7,7,'#c83a3a'); px(x+6,y+26,5,3,'#ffffff');  // 腕章
-    if(clap){ px(x+10,y+26,7,9,'#f2cda2'); px(x+19,y+26,7,9,'#f2cda2');
-      px(x+2,y+22,4,4,'#fffb96'); px(x+30,y+22,4,4,'#fffb96'); }
-    else{ px(x-4,y+24,9,13,'#8a5a2a'); px(x-3,y+26,7,9,'#f0ece0');   // クリップボード
-      px(x-2,y+28,5,1,'#9a9a9a'); px(x-2,y+31,5,1,'#9a9a9a');
-      px(x+30,y+22,6,13,'#3a3a44'); }
-    px(x+8,y+40,8,5,'#17171c'); px(x+20,y+40,8,5,'#17171c');
+  }else{ /* jirei：社内改善事例（発表パネルの魔物。Before/Afterと 右肩上がりのグラフ） */
+    px(x-2,y+2,40,32,'#f0ece0');                     // 発表パネル本体
+    px(x-4,y,44,4,'#b967ff'); px(x-4,y+34,44,3,'#b967ff');   // ネオンの枠
+    px(x+1,y+6,16,10,'#5a5a66'); px(x+3,y+8,12,6,'#3a3a44'); // Before写真（暗い）
+    px(x+19,y+6,16,10,'#8ad0ff'); px(x+21,y+8,12,6,'#e8f4ff'); // After写真（明るい）
+    px(x+17,y+9,3,4,'#c83a3a');                      // →の矢印
+    px(x+2,y+28,5,-6,'#05ffa1'); px(x+9,y+28,5,-9,'#05ffa1'); // 右肩上がりの棒グラフ
+    px(x+16,y+28,5,-12,'#05ffa1'); px(x+23,y+28,5,-16,'#ffe14a');
+    px(x+6,y+19,5,4,'#17171c'); px(x+25,y+19,5,4,'#17171c');  // パネルに宿った 目
+    px(x+14,y+24,8,2,'#17171c');                     // 一文字の口
+    if(clap){ px(x-8,y+14,7,9,'#ffffff'); px(x+37,y+14,7,9,'#ffffff');   // 白手袋の手
+      px(x-12,y+10,4,4,'#fffb96'); px(x+42,y+10,4,4,'#fffb96'); }
+    else{ px(x-7,y+16,6,3,'#ffffff'); px(x+37,y+16,6,3,'#ffffff'); }
+    px(x+4,y+37,4,8,'#8a8a96'); px(x+28,y+37,4,8,'#8a8a96');  // イーゼルの脚
+    px(x+1,y+44,10,3,'#5a5a66'); px(x+25,y+44,10,3,'#5a5a66');
   }
 }
 /* ── ヴェイパーウェイヴ背景 ── */
@@ -754,6 +789,23 @@ function sparkle(x,y,a,c){
   cx.save(); cx.globalAlpha=a;
   px(x-3,y,7,1,c); px(x,y-3,1,7,c); px(x-1,y-1,3,3,'#ffffff');
   cx.restore();
+}
+/* 進行度 0→1：夕暮れが 沈んでいき、最後は 夜になる（3戦通しで進む） */
+var SKY_DAY  =['#0d0621','#140a2e','#1d0f3f','#2a1454','#3a1a66','#552178','#7c2a86','#a53a92'];
+var SKY_NIGHT=['#020109','#03020e','#050313','#070418','#09051d','#0b0622','#0d0727','#10082c'];
+var STARS=[{x:14,y:12,p:0},{x:48,y:44,p:1.2},{x:84,y:8,p:2.3},{x:104,y:70,p:3.1},
+           {x:126,y:22,p:0.7},{x:150,y:58,p:1.9},{x:176,y:12,p:2.8},{x:204,y:44,p:0.4},
+           {x:226,y:8,p:3.6},{x:252,y:74,p:1.5},{x:284,y:20,p:2.1},{x:308,y:52,p:0.9},
+           {x:36,y:88,p:2.6},{x:196,y:88,p:1.1},{x:296,y:96,p:3.3},{x:64,y:118,p:0.2}];
+function lerpC(a,b,k){
+  function h(s){ return [parseInt(s.substr(1,2),16),parseInt(s.substr(3,2),16),parseInt(s.substr(5,2),16)]; }
+  var A=h(a),B=h(b),i,o='#';
+  for(i=0;i<3;i++){ var v=Math.round(A[i]+(B[i]-A[i])*k); o+=('0'+v.toString(16)).slice(-2); }
+  return o;
+}
+function gameProgress(t){
+  var b=(G&&G.endAt)?Math.min(1,Math.max(0,t/G.endAt)):0;
+  return Math.min(1,(Math.min(BATTLE.idx,OPPS.length-1)+b)/OPPS.length);
 }
 function nobori(x,ch1,ch2,col){
   px(x,132,2,72,'#c8c8d0');                             // 竿
@@ -769,19 +821,39 @@ function palm(x,y){
   px(x-2,y-31,4,4,'#12081f');
 }
 function drawVapor(t){
-  /* グラデーションの空 */
-  var sky=['#0d0621','#140a2e','#1d0f3f','#2a1454','#3a1a66','#552178','#7c2a86','#a53a92'];
-  var i;
-  for(i=0;i<8;i++) px(0,i*26,320,26,sky[i]);
-  /* 縞入りのレトロ太陽 */
-  cx.save();
-  var gr=cx.createLinearGradient(0,110,0,204);
-  gr.addColorStop(0,'#fffb96'); gr.addColorStop(0.55,'#ff9a4a'); gr.addColorStop(1,'#ff71ce');
-  cx.fillStyle=gr;
-  cx.beginPath(); cx.arc(160,176,52,0,Math.PI*2); cx.fill();
-  cx.restore();
-  px(96,148,128,3,'#2a1454'); px(96,160,128,4,'#3a1a66');       // 太陽の縞
-  px(96,174,128,5,'#552178'); px(96,190,128,7,'#7c2a86');
+  /* グラデーションの空（進行につれて 夜へ沈む） */
+  var p=gameProgress(t), i;
+  for(i=0;i<8;i++) px(0,i*26,320,26,lerpC(SKY_DAY[i],SKY_NIGHT[i],p));
+  /* 星と月（夜が深まるほど 現れる） */
+  for(i=0;i<STARS.length;i++){
+    var st2=STARS[i], a2=p*(0.25+0.75*Math.abs(Math.sin(t/520+st2.p)));
+    if(a2>0.05){ cx.save(); cx.globalAlpha=Math.min(1,a2); px(st2.x,st2.y,2,2,'#ffffff'); cx.restore(); }
+  }
+  if(p>0.55){
+    cx.save(); cx.globalAlpha=Math.min(1,(p-0.55)/0.45);
+    cx.fillStyle='#efe6ff'; cx.beginPath(); cx.arc(100,28,9,0,Math.PI*2); cx.fill();
+    cx.fillStyle=lerpC(SKY_DAY[1],SKY_NIGHT[1],p);
+    cx.beginPath(); cx.arc(104,25,8,0,Math.PI*2); cx.fill();   // 欠けさせて 三日月に
+    cx.restore();
+  }
+  /* 沈んでいく 縞入りのレトロ太陽 */
+  var sy=176+Math.round(p*95);
+  if(sy-52<203){
+    cx.save();
+    var gr=cx.createLinearGradient(0,sy-66,0,sy+30);
+    gr.addColorStop(0,'#fffb96'); gr.addColorStop(0.55,'#ff9a4a'); gr.addColorStop(1,'#ff71ce');
+    cx.fillStyle=gr;
+    cx.beginPath(); cx.arc(160,sy,52,0,Math.PI*2); cx.fill();
+    cx.restore();
+    var sts=[{o:-28,h:3},{o:-14,h:4},{o:2,h:5},{o:18,h:7}], j2;   // 太陽の縞
+    for(j2=0;j2<sts.length;j2++){
+      var yy=sy+sts[j2].o;
+      if(yy>0&&yy<203){
+        var bi=Math.max(0,Math.min(7,Math.floor(yy/26)));
+        px(96,yy,128,sts[j2].h,lerpC(SKY_DAY[bi],SKY_NIGHT[bi],p));
+      }
+    }
+  }
   /* 地平線と パースグリッド */
   px(0,203,320,2,'#01cdfe');
   px(0,205,320,55,'#12081f');
@@ -882,6 +954,12 @@ function draw(t){
   if(age>=0 && age<350){
     cx.save(); cx.globalAlpha=0.9*(1-age/350);
     cx.fillStyle='#ffffff'; cx.fillRect(0,0,320,260); cx.restore();
+  }
+  /* マイク割れ等の 小フラッシュ */
+  var mfa=t-G.miniF;
+  if(mfa>=0 && mfa<260){
+    cx.save(); cx.globalAlpha=0.35*(1-mfa/260);
+    cx.fillStyle='#ff5a4a'; cx.fillRect(0,0,320,260); cx.restore();
   }
 }
 
