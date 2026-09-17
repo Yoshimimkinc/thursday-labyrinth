@@ -6,7 +6,8 @@
 <title>木曜日の投資対効果三本締め対決 — 木曜の野望</title>
 <style>
 /* ── ヴェイパーウェイヴ・テーマ（ネオンピンク×シアン・1990s） ── */
-*{box-sizing:border-box;margin:0;padding:0;}
+*{box-sizing:border-box;margin:0;padding:0;touch-action:manipulation;}  /* ダブルタップ拡大は 全要素で殺す（継承されないため） */
+#btns .bt,#scene,canvas{touch-action:none;}                             /* 連打域は ジェスチャー全部無効 */
 html,body{min-height:100%;background:#0d0621;color:#efe6ff;
   font-family:'MS Gothic','Osaka-Mono','Hiragino Kaku Gothic ProN',monospace;
   -webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;
@@ -977,6 +978,9 @@ if(typeof document!=='undefined' && document.getElementById){
     else if(e.code==='KeyK'){ e.preventDefault(); yoBtn(); }
     else if(e.code==='KeyL'){ e.preventDefault(); oyeBtn(); }
   });
+  /* スマホの ダブルタップ拡大・ピンチの 保険（連打ゲームの基本） */
+  document.addEventListener('dblclick', function(e){ e.preventDefault(); });
+  document.addEventListener('gesturestart', function(e){ e.preventDefault(); });
   title();
 }
 </script>

@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>見積もりクエスト＜ＲＯＩＣバトルロワイヤル＞ — 木曜の野望</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0;}
+*{box-sizing:border-box;margin:0;padding:0;touch-action:manipulation;}  /* ダブルタップ拡大防止（継承されないため全要素に） */
+#cmd .it,#scene,canvas{touch-action:none;}                              /* 連打域は ジェスチャー全部無効 */
 html,body{min-height:100%;background:#000;color:#fff;
   font-family:'MS Gothic','Osaka-Mono','Hiragino Kaku Gothic ProN',monospace;
   -webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;
