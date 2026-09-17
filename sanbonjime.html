@@ -97,26 +97,26 @@ var LEAD8=16;                                 // 前奏・間奏＝2小節（BGM
 var NTURN=6;                                  // 交互に 計6回
 var PITA=100, YOSHI=220, APPR=1300, HITY=200;
 
-/* --- 対戦相手（登場・途中・勝ち負けのセリフ付き） --- */
+/* --- 対戦相手（今週のステージ：改善活動大会。登場・途中・勝ち負けのセリフ付き） --- */
 var OPPS=[
-  { id:'zenpaku', nm:'ゼンパク男', sigma:125, miss:0.24, beat:'electro', beatNm:'エレクトロ',
-    intro:['「おっ、締め対決かい？　ブロックKの夜で鍛えた 俺の手拍子、見せたるわ」',
-           '（ジョッキ片手に、もう 上機嫌である）'],
-    mid:'ゼンパク男「……あれ？　いまの ずれとった？　よ、酔っとらんよ？」',
-    winln:'ゼンパク男「まだまだ 若いねえ！　罰として 仲見世2軒目、つきあってもらうよ」',
-    loseln:'ゼンパク男「くーっ、完敗だわ。今夜は 俺のおごりだ！　……ウーロンハイで いいら？」' },
-  { id:'shocho', nm:'しょちょう', sigma:70, miss:0.08, beat:'house', beatNm:'ハウス（4つ打ち）',
-    intro:['「三本締めにも 道具の差が出るのかね？　──出んよ。腕だよ」',
-           '（全身マーク＆ロナ。手拍子用の 白手袋まで 新品だ）'],
-    mid:'しょちょう「ふむ……手拍子に 距離計は 使えんか」',
-    winln:'しょちょう「精進したまえ。ゴルフでも 締めでも、いつでも 受けて立つよ」',
-    loseln:'しょちょう「……参った。きみ、練習しとるね。ＲＯＩＣ杯の幹事、頼むよ」' },
-  { id:'shotake', nm:'ショータケさん', sigma:45, miss:0.03, beat:'techno', beatNm:'テクノ（4つ打ち）',
-    intro:['「お久しぶりです。締めの前に……その拍手、あと10パーセント 速くなりませんか」',
-           '（電卓を 置いた。──本気の 構えだ）'],
-    mid:'ショータケ「いまのズレ、ＶＡ提案として 記録しました」',
-    winln:'ショータケ「お見事……いえ、こちらの勝ちですね。ＶＡ金額、いただきます」',
-    loseln:'ショータケ「……完敗です。この勝負、おたくに 嫁がせます」' }
+  { id:'rookie', nm:'ルーキーハッピョーシャ', sigma:130, miss:0.26, beat:'electro', beatNm:'エレクトロ',
+    intro:['「ほ、本日 初発表の 若手です！　よろしく お願いしますっ！」',
+           '（マイクが キーンと ハウリングした。──緊張が こっちまで うつる）'],
+    mid:'ルーキー「すみません！　いま 1拍、飛ばしました！　スライドも よく飛ばします！」',
+    winln:'ルーキー「や、やった！　勝ちました！　──あ、対戦 ありがとうございました！（深い お辞儀）」',
+    loseln:'ルーキー「完敗です……！　でも 学びが ありました！　来期に 水平展開します！」' },
+  { id:'powerpo', nm:'パワポノタツジン', sigma:70, miss:0.08, beat:'house', beatNm:'ハウス（4つ打ち）',
+    intro:['「私の改善発表は、アニメーション付きで有名でしてね。──締めにも キレが ありますよ」',
+           '（レーザーポインターの 赤い点が、ビートに合わせて 揺れている）'],
+    mid:'タツジン「ここで ポインターを 一周 回すのが、聴衆を 起こすコツです」',
+    winln:'タツジン「発表も 締めも、場数ですよ 場数。──いい拍手でしたけどね」',
+    loseln:'タツジン「……お見事。来期の発表資料に、あなたの締めを 引用させてください」' },
+  { id:'iincho', nm:'ジッコウイインチョー', sigma:45, miss:0.03, beat:'techno', beatNm:'テクノ（4つ打ち）',
+    intro:['「改善活動大会、最終演目──締めの部を 開催します」',
+           '「──手拍子にも、効果金額を 出してもらいますよ」（腕章が きらりと 光った）'],
+    mid:'イインチョー「いまのズレ、改善提案書に 書いておきます。期限は 今週中」',
+    winln:'イインチョー「効果金額 不足。判定──来期、再発表です」',
+    loseln:'イインチョー「……満点です。来年の大会の締め、お願いします」' }
 ];
 
 var BATTLE={idx:0, wins:0, log:[]};
@@ -584,7 +584,7 @@ function finalResult(){
   else if(w===2) rank='締 め の 達 人';
   else if(w===1) rank='宴 会 部 長';
   else rank='修 行 中';
-  h+='<h2>締め対決・全戦終了</h2>';
+  h+='<h2>改善活動大会・締めの部 閉会</h2>';
   h+='<div class="rank">'+rank+'</div>';
   h+='<table>';
   for(i=0;i<BATTLE.log.length;i++){
@@ -592,8 +592,8 @@ function finalResult(){
     h+='<tr><td>'+(L.win?'○':'●')+'　'+L.nm+'</td><td>粗利'+L.ara+'万／VA'+L.va+'万</td></tr>';
   }
   h+='</table>';
-  h+='<p class="sp">──手拍子の正確さは、段取りの正確さ。締めが そろう会社は、仕事も そろう。……たぶん。</p>';
-  if(w===0) h+='<p class="sp">スポンジマン「拍手の練習、つきあおうか？　……ぼくは 手が スポンジだけど」</p>';
+  h+='<p class="sp">──改善は 一日にして ならず。締めも また。そろう会社は、仕事も そろう。……たぶん。</p>';
+  if(w===0) h+='<p class="sp">スポンジマン「拍手の練習、つきあおうか？　……ぼくの改善効果額は ゼロだけど」</p>';
   h+='<p style="text-align:center;color:#fffb96;margin-top:10px">— 木曜日の投資対効果三本締め対決・完 —</p>';
   h+='<button class="big" id="ag">もういちど</button>';
   el('vin').innerHTML=h; el('veil').classList.remove('hide');
@@ -602,6 +602,7 @@ function finalResult(){
 function introOpp(){
   var opp=OPPS[BATTLE.idx], h='', i;
   h+='<h2>第'+(BATTLE.idx+1)+'戦</h2>';
+  h+='<p style="text-align:center;color:#05ffa1;font-size:10px;letter-spacing:2px;margin-top:-6px">── 改善活動大会・締めの部 ──</p>';
   h+='<canvas id="ic" width="80" height="66" style="width:200px;max-width:60%;display:block;'
     +'margin:0 auto 4px;image-rendering:pixelated;border:2px solid #444;border-radius:4px"></canvas>';
   h+='<p style="text-align:center;color:#ff9a4a;font-size:15px;letter-spacing:2px">'+opp.nm+'</p>';
@@ -636,7 +637,8 @@ function title(){
   h+='<p style="text-align:center;color:#b967ff;font-size:10px;letter-spacing:2px;margin-top:-6px">'
     +'ＲＯＩ　ＳＡＮＢＯＮＪＩＭＥ　ＢＡＴＴＬＥ　’９５</p>';
   h+='<p style="text-align:center;color:#8a7ab0;font-size:11px">木曜の野望 ─ OHMAMA SOFT</p>';
-  h+='<p>相手と 交互に 三本締め（3ターンずつ・計6回）。正確なほど こちらの<b>粗利</b>が増え、相手には<b>ＶＡ金額</b>が積まれる。</p>';
+  h+='<p style="text-align:center;color:#05ffa1;font-size:11px;letter-spacing:2px">今週のステージ：改善活動大会</p>';
+  h+='<p>相手と 交互に 三本締め（3ターンずつ・計6回）。正確なほど こちらの<b>粗利</b>が増え、相手には<b>ＶＡ金額</b>（改善効果額）が積まれる。</p>';
   h+='<p style="color:#7fd6a2">👏パンと ヨッ！で 譜面を。<b>オーイエー</b>の合いの手・ヤジは <b>ユニーク加点</b>。</p>';
   h+='<button class="big" id="st">たいけつ 開始</button>';
   el('vin').innerHTML=h;
@@ -700,44 +702,47 @@ function drawMe(x,y,clap){
   px(x+8,y+40,8,5,'#17171c'); px(x+20,y+40,8,5,'#17171c');
 }
 function drawOpp(id,x,y,clap){
-  if(id==='zenpaku'){
-    px(x+8,y,20,7,'#2a2a32');
-    px(x+6,y+4,24,5,'#c83a3a');                      // ネクタイはちまき
-    px(x+9,y+8,18,13,'#f2a08a');                     // 赤ら顔
-    px(x+12,y+12,4,2,'#2a1a12'); px(x+21,y+12,4,2,'#2a1a12');
-    px(x+14,y+16,8,3,'#5a1408');
-    px(x+5,y+21,26,19,'#3a3a4a');
-    px(x+15,y+21,6,9,'#ffffff');
-    if(clap){ px(x+10,y+26,7,9,'#f2cda2'); px(x+19,y+26,7,9,'#f2cda2');
-      px(x+2,y+22,4,4,'#ffe14a'); px(x+30,y+22,4,4,'#ffe14a'); }
-    else{ px(x-2,y+18,8,7,'#ffd24a'); px(x-2,y+15,8,4,'#ffffff');  // ジョッキ
-      px(x+30,y+22,6,13,'#3a3a4a'); }
-    px(x+8,y+39,8,5,'#17171c'); px(x+20,y+39,8,5,'#17171c');
-  }else if(id==='shocho'){
-    px(x+7,y,22,7,'#17171c'); px(x+4,y+5,28,4,'#17171c');   // 黒キャップ
+  if(id==='rookie'){                                 // 初発表の若手（作業帽・緊張の汗）
+    px(x+7,y,22,7,'#2a6ab0'); px(x+5,y+5,26,3,'#1a4a80');   // 作業帽
     px(x+13,y+1,10,4,'#ffffff');
-    px(x+9,y+9,18,12,'#f2cda2');
-    px(x+10,y+12,7,4,'#17171c'); px(x+19,y+12,7,4,'#17171c'); // サングラス
-    px(x+15,y+17,7,2,'#8a5a4a');
-    px(x+5,y+21,26,19,'#17171c');                    // マーク＆ロナ
-    px(x+8,y+24,5,5,'#ffffff'); px(x+23,y+24,5,5,'#ffffff');
-    px(x+15,y+28,6,6,'#ffd24a');
+    px(x+9,y+8,18,13,'#f2cda2');                     // 顔
+    px(x+12,y+12,4,3,'#2a1a12'); px(x+21,y+12,4,3,'#2a1a12');
+    px(x+14,y+17,8,2,'#8a5a4a');                     // 引き結んだ口
+    px(x+29,y+9,3,5,'#8ad0ff'); px(x+30,y+14,2,3,'#8ad0ff'); // 緊張の汗
+    px(x+5,y+21,26,19,'#2a6ab0');                    // 作業服（青）
+    px(x+15,y+21,6,8,'#ffffff'); px(x+6,y+23,8,4,'#ffffff'); // 名札
     if(clap){ px(x+10,y+26,7,9,'#f2cda2'); px(x+19,y+26,7,9,'#f2cda2');
-      px(x+2,y+22,4,4,'#ffe14a'); px(x+30,y+22,4,4,'#ffe14a'); }
-    else{ px(x+31,y+2,4,34,'#c8c8d0'); px(x+28,y-4,10,7,'#8ad0ff');  // ドライバー
-      px(x,y+22,6,13,'#17171c'); }
-    px(x+8,y+40,8,5,'#ff5a4a'); px(x+20,y+40,8,5,'#ff5a4a');
-  }else{ /* shotake */
+      px(x+2,y+22,4,4,'#fffb96'); px(x+30,y+22,4,4,'#fffb96'); }
+    else{ px(x-3,y+24,8,11,'#f0ece0'); px(x-1,y+26,4,2,'#9a9a9a'); // 発表原稿（握りしめ）
+      px(x+30,y+22,6,13,'#2a6ab0'); }
+    px(x+8,y+39,8,5,'#17171c'); px(x+20,y+39,8,5,'#17171c');
+  }else if(id==='powerpo'){                          // パワポの達人（ベスト・ポインター）
+    px(x+8,y,20,7,'#5a5a66'); px(x+6,y+4,6,6,'#5a5a66');    // ロマンスグレー
+    px(x+9,y+8,18,13,'#f2cda2');
+    px(x+10,y+12,7,4,'#c8c8d0'); px(x+19,y+12,7,4,'#c8c8d0'); // 銀ぶちめがね
+    px(x+15,y+17,7,2,'#8a5a4a');
+    px(x+5,y+21,26,19,'#4a3a6a');                    // 発表用ベスト（紫）
+    px(x+15,y+21,6,9,'#ffffff'); px(x+16,y+23,4,10,'#01cdfe');
+    if(clap){ px(x+10,y+26,7,9,'#f2cda2'); px(x+19,y+26,7,9,'#f2cda2');
+      px(x+2,y+22,4,4,'#fffb96'); px(x+30,y+22,4,4,'#fffb96'); }
+    else{ px(x+30,y+22,6,10,'#4a3a6a'); px(x+31,y+32,4,6,'#17171c'); // ポインター
+      px(x+29,y+38,8,2,'#ff5a4a'); px(x-4,y+26,6,2,'#ff5a4a');       // 赤い光点
+      px(x,y+22,6,13,'#4a3a6a'); }
+    px(x+8,y+40,8,5,'#17171c'); px(x+20,y+40,8,5,'#17171c');
+  }else{ /* iincho：実行委員長（腕章・クリップボード） */
     px(x+8,y,20,8,'#2a2a32');
     px(x+9,y+7,18,13,'#f2cda2');
-    px(x+10,y+11,7,4,'#8ad0ff'); px(x+19,y+11,7,4,'#8ad0ff'); // めがね
-    px(x+15,y+17,7,2,'#8a3a3a');
-    px(x+5,y+20,26,20,'#2a3a54');
-    px(x+15,y+20,6,7,'#ffffff'); px(x+16,y+22,4,9,'#c83a3a');
+    px(x+11,y+11,5,2,'#17171c'); px(x+20,y+11,5,2,'#17171c'); // 太い眉
+    px(x+12,y+13,4,3,'#2a1a12'); px(x+21,y+13,4,3,'#2a1a12');
+    px(x+15,y+18,7,2,'#6a3a3a');                     // への字口
+    px(x+5,y+20,26,20,'#3a3a44');                    // グレーのスーツ
+    px(x+15,y+20,6,8,'#ffffff'); px(x+16,y+22,4,9,'#b967ff');
+    px(x+5,y+24,7,7,'#c83a3a'); px(x+6,y+26,5,3,'#ffffff');  // 腕章
     if(clap){ px(x+10,y+26,7,9,'#f2cda2'); px(x+19,y+26,7,9,'#f2cda2');
-      px(x+2,y+22,4,4,'#ffe14a'); px(x+30,y+22,4,4,'#ffe14a'); }
-    else{ px(x-4,y+24,9,12,'#c8c8d0'); px(x-2,y+26,5,3,'#2a3a2a'); // 電卓
-      px(x+30,y+22,6,13,'#2a3a54'); }
+      px(x+2,y+22,4,4,'#fffb96'); px(x+30,y+22,4,4,'#fffb96'); }
+    else{ px(x-4,y+24,9,13,'#8a5a2a'); px(x-3,y+26,7,9,'#f0ece0');   // クリップボード
+      px(x-2,y+28,5,1,'#9a9a9a'); px(x-2,y+31,5,1,'#9a9a9a');
+      px(x+30,y+22,6,13,'#3a3a44'); }
     px(x+8,y+40,8,5,'#17171c'); px(x+20,y+40,8,5,'#17171c');
   }
 }
@@ -749,6 +754,12 @@ function sparkle(x,y,a,c){
   cx.save(); cx.globalAlpha=a;
   px(x-3,y,7,1,c); px(x,y-3,1,7,c); px(x-1,y-1,3,3,'#ffffff');
   cx.restore();
+}
+function nobori(x,ch1,ch2,col){
+  px(x,132,2,72,'#c8c8d0');                             // 竿
+  px(x+2,132,16,46,col);
+  cx.fillStyle='#ffffff'; cx.font='11px "MS Gothic",monospace';
+  cx.fillText(ch1,x+5,148); cx.fillText(ch2,x+5,164);
 }
 function palm(x,y){
   px(x-2,y-24,4,24,'#12081f');                          // 幹
@@ -781,8 +792,9 @@ function drawVapor(t){
   cx.strokeStyle='rgba(255,113,206,0.45)';
   for(j=-5;j<=5;j++){ cx.beginPath(); cx.moveTo(160,205); cx.lineTo(160+j*64,262); cx.stroke(); }
   cx.restore();
-  /* パームツリーの シルエット */
+  /* パームツリーの シルエットと 大会のぼり */
   palm(20,204); palm(300,204);
+  nobori(6,'改','善','#ff71ce'); nobori(298,'大','会','#01cdfe');
   /* きらめき */
   var pal=['#01cdfe','#ff71ce','#fffb96'];
   for(i=0;i<SPARKS.length;i++){
