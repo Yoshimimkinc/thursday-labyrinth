@@ -240,93 +240,113 @@ function boomSound(){
     o.start(t); o.stop(t+0.55);
   }catch(e){}
 }
-/* BGM：三本締め対決と同じフル版（エレクトロ／ハウス4つ打ち／テクノ・2小節ループ） */
+/* BGM：三本締め対決と同じビート（エレクトロ／ハウス4つ打ち／テクノ・2小節ループ）
+   ※一括予約ではなく「逐次スケジューラ」方式：300msごとに 先の1.8秒ぶんだけ予約する。
+     面が変わっても 古い音源が残らず、何戦でも 鳴り続ける */
 var BPM=115, BEAT=60000/(BPM*2);
+var BGMst=null, BGMtm=null;
+var BGM_KICK=[1,0,0,1, 0,0,1,0, 0,0,1,0, 0,0,0,0,  1,0,0,1, 0,0,1,0, 0,0,1,0, 0,0,1,0];
+var BGM_SNR =[0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0,  0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,1];
+var BGM_BASS8=[45,45,-1,45, -1,45,-1,43, 45,45,-1,45, 48,-1,43,-1];
+var BGM_HBASS8=[-1,45,-1,45, -1,45,-1,45, -1,43,-1,43, -1,45,-1,48];
+function fqM(m){ return 440*Math.pow(2,(m-69)/12); }
+function bgmNoise(t,dur,hpf,vol){
+  var s=AC.createBufferSource(); s.buffer=BGMst.hb;
+  var f=AC.createBiquadFilter(); f.type='highpass'; f.frequency.value=hpf;
+  var g=AC.createGain();
+  g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+  s.connect(f); f.connect(g); g.connect(BGMst.master); s.start(t); s.stop(t+dur+0.02);
+}
+function bgmKick(t,hard){
+  var o=AC.createOscillator(), g=AC.createGain();
+  o.type='sine';
+  o.frequency.setValueAtTime(hard?170:160,t);
+  o.frequency.exponentialRampToValueAtTime(hard?40:44,t+0.11);
+  g.gain.setValueAtTime(1.0,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.20);
+  o.connect(g); g.connect(BGMst.master); o.start(t); o.stop(t+0.22);
+}
+function bgmSnare(t,vol){
+  bgmNoise(t,0.09,1200,vol||0.35);
+  var o=AC.createOscillator(), g=AC.createGain();
+  o.type='triangle'; o.frequency.value=185;
+  g.gain.setValueAtTime((vol||0.35)*0.7,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.08);
+  o.connect(g); g.connect(BGMst.master); o.start(t); o.stop(t+0.1);
+}
+function bgmBass(t,m,dur,vol){
+  var o=AC.createOscillator(), f=AC.createBiquadFilter(), g=AC.createGain();
+  o.type='square'; o.frequency.value=fqM(m-12);
+  f.type='lowpass'; f.frequency.value=800;
+  g.gain.setValueAtTime(vol||0.34,t); g.gain.exponentialRampToValueAtTime(0.02,t+dur*0.85);
+  o.connect(f); f.connect(g); g.connect(BGMst.master); o.start(t); o.stop(t+dur*0.9);
+}
+function bgmStab(t,ns,vol,dur){
+  var j;
+  for(j=0;j<ns.length;j++){
+    var o=AC.createOscillator(), g=AC.createGain();
+    o.type='sawtooth'; o.frequency.value=fqM(ns[j])*(1+(j-1)*0.004);
+    g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g); g.connect(BGMst.master); o.start(t); o.stop(t+dur+0.02);
+  }
+}
+function bgmStep(st,t,i){
+  var s16=BEAT/2000, bm;
+  if(BGMst.style==='house'){
+    if(st%4===0) bgmKick(t,false);
+    if(st%8===4) bgmNoise(t,0.12,1600,0.30);
+    if(st%4===2) bgmNoise(t,0.12,7000,0.22);
+    else if(st%2===1) bgmNoise(t,0.03,9000,0.10);
+    if(i%2===1){ bm=BGM_HBASS8[(Math.floor(i/2))%16]; if(bm>=0) bgmBass(t,bm,BEAT/1000,0.30); }
+    if(st===6||st===14||st===22||st===30) bgmStab(t,[60,64,67],0.10,0.16);
+  }else if(BGMst.style==='techno'){
+    if(st%4===0) bgmKick(t,true);
+    if(st%8===4) bgmSnare(t,0.22);
+    bgmNoise(t,0.03,9500,(st%4===2)?0.16:0.08);
+    if(st%4!==0) bgmBass(t,33+((st%16===14)?3:0),s16,0.20);
+    if(st===0)  bgmStab(t,[57,60],0.14,0.30);
+    if(st===24) bgmStab(t,[55,58],0.10,0.20);
+  }else{
+    if(BGM_KICK[st]) bgmKick(t,false);
+    if(BGM_SNR[st])  bgmSnare(t);
+    if(st%4===2) bgmNoise(t,0.10,8000,0.18);
+    else         bgmNoise(t,0.04,9000,(st%2===0)?0.16:0.11);
+    if(i%2===0){ bm=BGM_BASS8[(i/2)%16]; if(bm>=0) bgmBass(t,bm,BEAT/1000); }
+    if(st===0) bgmStab(t,[57,60,64],0.16,0.28);
+  }
+}
+function bgmTick(){
+  if(!AC||!BGMst) return;
+  try{
+    var s16=BEAT/2000, e8=s16*2;
+    var horizon=AC.currentTime+1.8, guard=0;
+    while(guard++<80){
+      var i=BGMst.step;
+      var t=BGMst.t0+Math.floor(i/2)*e8+(i%2)*BGMst.sw*e8;
+      if(t>horizon) break;
+      if(t>=AC.currentTime-0.05) bgmStep(i%32,t,i);
+      BGMst.step++;
+    }
+  }catch(e){}
+}
 function bgmStart(style){
   if(!AC) return;
   try{
     if(AC.state==='suspended') AC.resume();
     bgmStop();
     style=style||'electro';
-    var t0=AC.currentTime+0.1, s16=BEAT/2000, totalMs=240000;
     var master=AC.createGain(); master.gain.value=0.24; master.connect(AC.destination);
     BGM=master;
-    function fq(m){ return 440*Math.pow(2,(m-69)/12); }
     var hb=AC.createBuffer(1,Math.floor(AC.sampleRate*0.15),AC.sampleRate);
     var hd=hb.getChannelData(0), i;
     for(i=0;i<hd.length;i++) hd[i]=(Math.random()*2-1);
-    function noiseAt(t,dur,hpf,vol){
-      var s=AC.createBufferSource(); s.buffer=hb;
-      var f=AC.createBiquadFilter(); f.type='highpass'; f.frequency.value=hpf;
-      var g=AC.createGain();
-      g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
-      s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t+dur+0.02);
-    }
-    function kick(t,hard){
-      var o=AC.createOscillator(), g=AC.createGain();
-      o.type='sine';
-      o.frequency.setValueAtTime(hard?170:160,t);
-      o.frequency.exponentialRampToValueAtTime(hard?40:44,t+0.11);
-      g.gain.setValueAtTime(1.0,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.20);
-      o.connect(g); g.connect(master); o.start(t); o.stop(t+0.22);
-    }
-    function snare(t,vol){
-      noiseAt(t,0.09,1200,vol||0.35);
-      var o=AC.createOscillator(), g=AC.createGain();
-      o.type='triangle'; o.frequency.value=185;
-      g.gain.setValueAtTime((vol||0.35)*0.7,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.08);
-      o.connect(g); g.connect(master); o.start(t); o.stop(t+0.1);
-    }
-    function bass(t,m,dur,vol){
-      var o=AC.createOscillator(), f=AC.createBiquadFilter(), g=AC.createGain();
-      o.type='square'; o.frequency.value=fq(m-12);
-      f.type='lowpass'; f.frequency.value=800;
-      g.gain.setValueAtTime(vol||0.34,t); g.gain.exponentialRampToValueAtTime(0.02,t+dur*0.85);
-      o.connect(f); f.connect(g); g.connect(master); o.start(t); o.stop(t+dur*0.9);
-    }
-    function stab(t,ns,vol,dur){
-      var j;
-      for(j=0;j<ns.length;j++){
-        var o=AC.createOscillator(), g=AC.createGain();
-        o.type='sawtooth'; o.frequency.value=fq(ns[j])*(1+(j-1)*0.004);
-        g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
-        o.connect(g); g.connect(master); o.start(t); o.stop(t+dur+0.02);
-      }
-    }
-    var KICK=[1,0,0,1, 0,0,1,0, 0,0,1,0, 0,0,0,0,  1,0,0,1, 0,0,1,0, 0,0,1,0, 0,0,1,0];
-    var SNR =[0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0,  0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,1];
-    var BASS8=[45,45,-1,45, -1,45,-1,43, 45,45,-1,45, 48,-1,43,-1];
-    var HBASS8=[-1,45,-1,45, -1,45,-1,45, -1,43,-1,43, -1,45,-1,48];
-    var SW=(style==='electro')?0.65:(style==='house'?0.56:0.5);
-    var e8=s16*2, n16=Math.floor(totalMs/1000/s16), bm;
-    for(i=0;i<n16;i++){
-      var t=t0+Math.floor(i/2)*e8+(i%2)*SW*e8, st=i%32;
-      if(style==='house'){
-        if(st%4===0) kick(t,false);
-        if(st%8===4) noiseAt(t,0.12,1600,0.30);
-        if(st%4===2) noiseAt(t,0.12,7000,0.22);
-        else if(st%2===1) noiseAt(t,0.03,9000,0.10);
-        if(i%2===1){ bm=HBASS8[(Math.floor(i/2))%16]; if(bm>=0) bass(t,bm,BEAT/1000,0.30); }
-        if(st===6||st===14||st===22||st===30) stab(t,[60,64,67],0.10,0.16);
-      }else if(style==='techno'){
-        if(st%4===0) kick(t,true);
-        if(st%8===4) snare(t,0.22);
-        noiseAt(t,0.03,9500,(st%4===2)?0.16:0.08);
-        if(st%4!==0) bass(t,33+((st%16===14)?3:0),s16,0.20);
-        if(st===0)  stab(t,[57,60],0.14,0.30);
-        if(st===24) stab(t,[55,58],0.10,0.20);
-      }else{
-        if(KICK[st]) kick(t,false);
-        if(SNR[st])  snare(t);
-        if(st%4===2) noiseAt(t,0.10,8000,0.18);
-        else         noiseAt(t,0.04,9000,(st%2===0)?0.16:0.11);
-        if(i%2===0){ bm=BASS8[(i/2)%16]; if(bm>=0) bass(t,bm,BEAT/1000); }
-        if(st===0) stab(t,[57,60,64],0.16,0.28);
-      }
-    }
+    BGMst={style:style, master:master, hb:hb, t0:AC.currentTime+0.12, step:0,
+           sw:(style==='electro')?0.65:(style==='house'?0.56:0.5)};
+    bgmTick();
+    BGMtm=setInterval(bgmTick, 300);
   }catch(e){}
 }
 function bgmStop(){
+  if(BGMtm){ clearInterval(BGMtm); BGMtm=null; }
+  BGMst=null;
   if(BGM){ try{ BGM.gain.setTargetAtTime(0.0001,AC.currentTime,0.12); }catch(e){} BGM=null; }
 }
 
