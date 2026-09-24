@@ -210,7 +210,7 @@ function clapSound(good,opp){
     bp.frequency.value=opp?900:(good?1500:750); bp.Q.value=0.9;
     var pk=AC.createBiquadFilter(); pk.type='peaking';
     pk.frequency.value=2400; pk.gain.value=6; pk.Q.value=1.5;
-    var gn=AC.createGain(); gn.gain.value=opp?0.6:(good?0.9:0.5);
+    var gn=AC.createGain(); gn.gain.value=opp?0.35:(good?0.5:0.3);   // クラップ控えめ・音楽を聞かせる
     src.connect(hp); hp.connect(bp); bp.connect(pk); pk.connect(gn);
     gn.connect(AC.destination);
     if(REV) gn.connect(REV);
@@ -334,7 +334,7 @@ function bgmStart(style){
     if(AC.state==='suspended') AC.resume();
     bgmStop();
     style=style||'electro';
-    var master=AC.createGain(); master.gain.value=0.24; master.connect(AC.destination);
+    var master=AC.createGain(); master.gain.value=0.30; master.connect(AC.destination);
     BGM=master;
     var hb=AC.createBuffer(1,Math.floor(AC.sampleRate*0.15),AC.sampleRate);
     var hd=hb.getChannelData(0), i;
