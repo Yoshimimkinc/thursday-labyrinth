@@ -450,6 +450,19 @@ function ocLoop(){
         occ.fillStyle='#ff71ce'; occ.font='11px "MS Gothic",monospace';
         occ.fillText(G.opp.nm, 160-G.opp.nm.length*5.5, 128);
       }
+      /* ビートランプ：拍で脈打つ。緑のうちに 置けば「リズムに乗った」 */
+      if(AC&&BGMst){
+        var per=BEAT*2;
+        var off=((AC.currentTime-BGMst.t0)*1000)%per; if(off<0) off+=per;
+        var dist=Math.min(off,per-off);
+        var k=1-dist/(per/2);
+        occ.save(); occ.globalAlpha=0.35+0.6*k;
+        occ.fillStyle=(dist<=120)?'#05ffa1':'#ff71ce';
+        occ.beginPath(); occ.arc(22,112,6+8*k,0,Math.PI*2); occ.fill();
+        occ.restore();
+        occ.fillStyle='#8a7ab0'; occ.font='9px "MS Gothic",monospace';
+        occ.fillText('ビート',10,129);
+      }
       /* ふきだし */
       if(G.bub && tm-G.bubT<1200){
         occ.font='12px "MS Gothic",monospace';
@@ -502,7 +515,7 @@ function newBattle(opp){
     if(!dup) bombs.push({r:r,c:c});
   }
   return {opp:opp, b:b, turn:1, bombs:bombs, over:false, passStreak:0,
-          last:null, myMoves:0, boomed:0,
+          last:null, myMoves:0, boomed:0, shield:1,
           mood:'idle', moodT:0, bub:'', bubT:-9999};
 }
 
@@ -523,6 +536,7 @@ function render(){
     if(G.b[r][c]===1){ var s1=document.createElement('div'); s1.className='stone b flip'; cell.appendChild(s1); }
     else if(G.b[r][c]===2){ var s2=document.createElement('div'); s2.className='stone w flip'; cell.appendChild(s2); }
     else if(G.over && isBomb(r,c)) cell.textContent=(G.boomCell&&G.boomCell[0]===r&&G.boomCell[1]===c)?'💥':'💣';
+    else if(isBombFound(r,c)) cell.textContent='💣';   // ＶＡ保留で 見えるようになった爆弾
     (function(rr,cc){
       cell.addEventListener('pointerdown', function(e){ e.preventDefault(); tapCell(rr,cc); });
     })(r,c);
@@ -538,6 +552,20 @@ function isBomb(r,c){
   for(i=0;i<G.bombs.length;i++) if(G.bombs[i].r===r&&G.bombs[i].c===c) return true;
   return false;
 }
+/* リズム判定：BGMの4分ビート（4つ打ち）に 乗っているか（±120ms） */
+function onBeatNow(){
+  if(!AC||!BGMst) return false;
+  var per=BEAT*2;
+  var off=((AC.currentTime-BGMst.t0)*1000)%per;
+  if(off<0) off+=per;
+  return Math.min(off,per-off)<=120;
+}
+function isBombFound(r,c){
+  var i;
+  for(i=0;i<G.bombs.length;i++)
+    if(G.bombs[i].r===r&&G.bombs[i].c===c&&G.bombs[i].found) return true;
+  return false;
+}
 
 /* --- 手番 --- */
 function tapCell(r,c){
@@ -545,7 +573,35 @@ function tapCell(r,c){
   initAudio();
   var f=flipsFor(G.b,r,c,1);
   if(!f.length){ setMsg('そこには 置けんに（相手の石を はさめるマスに 置く）'); return; }
-  if(isBomb(r,c)){ explode(1,r,c); return; }
+  var beat=onBeatNow();
+  if(isBomb(r,c)){
+    if(beat){
+      /* ♪ ビートに乗った一手は 爆弾を 転がして 解除する */
+      var bj;
+      for(bj=G.bombs.length-1;bj>=0;bj--)
+        if(G.bombs[bj].r===r&&G.bombs[bj].c===c) G.bombs.splice(bj,1);
+      placeStone(r,c,1,f);
+      G.myMoves++;
+      setMsg('♪ ビートに 乗っとる！　ＶＡ爆弾は リズムに合わせて 転がり出ていった！（解除）');
+      oppMood('shock','な、なんだと……！？');
+      nextTurn(2);
+      return;
+    }
+    if(G.shield>0){
+      /* 救済：ＶＡ保留カード（各バトル1回）。即死を回避し、爆弾の場所が見える */
+      G.shield--;
+      var bi2;
+      for(bi2=0;bi2<G.bombs.length;bi2++)
+        if(G.bombs[bi2].r===r&&G.bombs[bi2].c===c) G.bombs[bi2].found=true;
+      blip(220,0.2,0.25);
+      setMsg('──待った！「この提案、一晩 預からせてください」　ＶＡ保留カードで 回避した！（💣が 見えた。保留は もう 使えん）');
+      oppMood('shock','ちっ……');
+      render();
+      nextTurn(2);
+      return;
+    }
+    explode(1,r,c); return;
+  }
   placeStone(r,c,1,f);
   G.myMoves++;
   /* ＶＡの気配（となり8マスに 生きた爆弾） */
@@ -554,8 +610,8 @@ function tapCell(r,c){
     var rr=r+DIRS[d][0], cc=c+DIRS[d][1];
     if(rr>=0&&rr<N&&cc>=0&&cc<N&&G.b[rr][cc]===0&&isBomb(rr,cc)) near=true;
   }
-  setMsg(near?'……ん？　この品番、ＶＡの においが するに（となりの どこかが あぶない）'
-             :'あなたは シェアを '+(f.length+1)+'マスぶん 取った。');
+  setMsg((beat?'♪ ':'')+(near?'……ん？　この品番、ＶＡの においが するに（となりの どこかが あぶない）'
+             :'あなたは シェアを '+(f.length+1)+'マスぶん 取った。'+(beat?'（ビートに 乗っとる）':'')));
   if(f.length>=3) oppMood('shock','なにっ！？');
   else if(near && G.opp.ai==='boss') oppMood('grin','……ふっふっふ');
   nextTurn(2);
@@ -732,6 +788,8 @@ function title(){
   h+='<p style="color:#ff9a4a">ただし 盤のどこかに <b>ＶＡ爆弾</b>が 埋まっとる。踏んだら ドカーン──'
     +'<b>爆弾ＶＡを 丸ごと了承</b>してしまい 即負け。'
     +'相手が 踏めば 自爆で 即勝ち。置いたマスの となりが あぶないときは「においがする」に。</p>';
+  h+='<p style="color:#05ffa1">♪ <b>ビートに乗れば 爆弾は 来ない</b>──左のランプが 緑に光る瞬間（4つ打ちの拍）に 置いた一手は、爆弾を 踏んでも 転がして <b>解除</b>できる。<br>'
+    +'さらに各バトル1回、<b>ＶＡ保留カード</b>──踏んでも「一晩 預からせてください」で 回避し、💣が 見える。</p>';
   h+='<button class="big" id="st">商談に 向かう</button>';
   el('vin').innerHTML=h;
   el('st').onclick=function(){ initAudio(); BATTLE={idx:0,wins:0,log:[]}; introOpp(); };
