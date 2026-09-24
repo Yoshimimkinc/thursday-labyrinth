@@ -104,23 +104,24 @@ body.quake #wrap{animation:qk .5s;}
 var N=5, DIRS=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
 
 var OPPS=[
-  { id:'rookie', nm:'ルーキーバイヤー', ai:'random', bombs:1, beat:'electro',
+  { id:'rookie', nm:'ルーキーバイヤー', ai:'random', bombs:1, clumsy:0.06, beat:'electro',
     intro:['「は、はじめての 相見積もり担当です！　よろしく お願いしますっ」',
            '「……あの、先輩が 盤のどこかに『ＶＡ爆弾』を 埋めたそうです。場所は 僕も 知りません」'],
     winln:'ルーキー「か、勝ちました！　初勝利です！　先輩に 報告してきます！」',
     loseln:'ルーキー「完敗です……シェアの取り方、勉強に なりました！」',
     bombP:'ルーキー「わーっ！　そ、それ ＶＡ爆弾です！　いまの、『特別ＶＡ・全面了承』って 議事録に 残っちゃいました……！」',
     bombS:'ルーキー「あれ、ここって──ドカーン！？　ぼ、僕が 踏んじゃいました……」' },
-  { id:'chutake', nm:'チュウタケさん', ai:'greedy', bombs:2, beat:'house',
+  { id:'chutake', nm:'チュウタケさん', ai:'greedy', bombs:2, clumsy:0.035, beat:'house',
     intro:['「中堅の私が 担当します。御社のシェア、少し 削らせてもらいますよ」',
            '「──ああ、盤には ＶＡ爆弾が 2発。私も 場所は 聞かされていません。お互い、慎重に」'],
     winln:'チュウタケ「この盤面が、来期の 発注比率だと お考えください」',
     loseln:'チュウタケ「……お見事。この盤面どおり、発注を 見直します」',
     bombP:'チュウタケ「──あ。それが ＶＡ爆弾です。ただいまをもって『ＶＡ提案・丸ごとご了承』と させていただきます」',
     bombS:'チュウタケ「なっ……私が 踏むとは……！　こ、この件は 内密に……」' },
-  { id:'chotatsu', nm:'チョータツさん', ai:'boss', bombs:3, beat:'techno',
+  { id:'chotatsu', nm:'チョータツさん', ai:'boss', bombs:3, clumsy:0.015, beat:'techno',
     intro:['「調達ひとすじ 25年。──ＶＡ爆弾を 発明したのは、私です」',
-           '「今回は 3発 埋めました。むろん、場所は ぜんぶ 覚えています。……さあ、どうします？」'],
+           '「今回は 3発 埋めました。むろん、場所は ぜんぶ 覚えています。……さあ、どうします？」',
+           '（……とはいえ 25年目。最近 物忘れが増えた、との噂もある）'],
     winln:'チョータツ「シェアも 盤面も、調達が 制する。──また 来期」',
     loseln:'チョータツ「……25年で 初めての 完敗です。この盤面、おたくに 嫁がせます」',
     bombP:'チョータツ「そこです。──ドン。『爆弾ＶＡ、丸ごと ご了承』と いうことで。……お気の毒に」',
@@ -587,13 +588,17 @@ function aiMove(){
     G.passStreak++; G.turn=1; render(); checkEnd(); return;
   }
   var pick=null, i;
-  /* チョータツさんは 爆弾の場所を 覚えている（踏まない）。他は 知らない */
-  var pool=vm;
-  if(G.opp.ai==='boss'){
-    var safe=[];
-    for(i=0;i<vm.length;i++) if(!isBomb(vm[i].r,vm[i].c)) safe.push(vm[i]);
-    if(safe.length) pool=safe;
+  /* うっかり自爆：打てるマスに 爆弾があると、毎手 低確率で 吸い寄せられる
+     （それ以外の手番では 全員 爆弾を避けて打つ＝自爆率はここだけで調整） */
+  var bombMoves=[];
+  for(i=0;i<vm.length;i++) if(isBomb(vm[i].r,vm[i].c)) bombMoves.push(vm[i]);
+  if(bombMoves.length && Math.random()<(G.opp.clumsy||0)){
+    var bmv=bombMoves[Math.floor(Math.random()*bombMoves.length)];
+    explode(2,bmv.r,bmv.c); return;
   }
+  var pool=vm, safe=[];
+  for(i=0;i<vm.length;i++) if(!isBomb(vm[i].r,vm[i].c)) safe.push(vm[i]);
+  if(safe.length) pool=safe;
   if(G.opp.ai==='random'){
     pick=pool[Math.floor(Math.random()*pool.length)];
   }else{
