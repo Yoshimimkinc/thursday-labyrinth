@@ -1279,9 +1279,10 @@ function triggerEnding(){
 ══════════════════════════════════════════════════════════ */
 function init(){
   if(/Line\//i.test(navigator.userAgent)) document.getElementById('lineBanner').classList.add('show');
-  /* 直リンク：index.html?world=golf で その編を 即スタート */
+  /* 直リンク：index.html?world=golf または index.html#golf で その編を 即スタート */
   let wkey=null;
   try{ wkey=new URLSearchParams(location.search).get('world'); }catch(e){}
+  if(!wkey){ try{ const hh=(location.hash||'').replace('#',''); if(hh) wkey=hh; }catch(e){} }
   if(wkey && WORLDS[wkey]) return startWorld(wkey);
   chooseWorld();
 }
