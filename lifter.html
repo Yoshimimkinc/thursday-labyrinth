@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>ファクトリー☆リフター — 木曜の野望</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;touch-action:manipulation;}
+#pad .b,#g{touch-action:none;}
+html,body{min-height:100%;background:#0d0621;color:#efe6ff;
+  font-family:'MS Gothic','Osaka-Mono','Hiragino Kaku Gothic ProN',monospace;
+  -webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;user-select:none;overscroll-behavior:none;}
+body{display:flex;justify-content:center;}
+#wrap{width:100%;max-width:520px;min-height:100vh;padding:6px 6px 12px;
+  background:linear-gradient(#0d0621 0%,#1d0f3f 60%,#3a1a5e 100%);}
+#g{display:block;width:100%;height:auto;image-rendering:pixelated;image-rendering:crisp-edges;
+  border:2px solid #b967ff;border-radius:8px;box-shadow:0 0 10px rgba(185,103,255,.5);background:#000;}
+#msg{min-height:22px;margin:6px 0;font-size:12.5px;line-height:1.6;color:#d8c8ff;text-align:center;}
+#pad{display:grid;grid-template-columns:1.25fr 1fr 1.05fr;gap:8px;margin-top:4px;}
+.grp{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.grp.v{grid-template-columns:1fr;}
+.b{border:2px solid #01cdfe;border-radius:10px;background:#1a0b2e;color:#fffb96;
+  display:flex;align-items:center;justify-content:center;flex-direction:column;
+  font-size:22px;height:62px;cursor:pointer;
+  box-shadow:0 0 8px rgba(1,205,254,.45),inset 0 0 8px rgba(255,113,206,.12);}
+.grp.v .b{height:28px;font-size:16px;}
+.b.on{background:#3a1a5e;}
+.b.fire{border-color:#ff71ce;box-shadow:0 0 10px rgba(255,113,206,.55);font-size:24px;}
+.b small{font-size:9px;color:#9a8ac0;margin-top:2px;}
+#veil{position:fixed;inset:0;background:rgba(13,6,33,.96);z-index:9;display:flex;
+  align-items:center;justify-content:center;padding:14px;}
+#veil.hide{display:none;}
+#vin{max-width:420px;width:100%;max-height:96vh;overflow-y:auto;border:2px solid #b967ff;
+  border-radius:8px;padding:14px;font-size:13px;line-height:1.75;background:#12081f;
+  box-shadow:0 0 14px rgba(185,103,255,.55);}
+#vin h2{font-size:19px;text-align:center;letter-spacing:2px;margin-bottom:8px;color:#ff71ce;
+  text-shadow:0 0 6px rgba(255,113,206,.9),0 0 16px rgba(1,205,254,.6);}
+#vin p{margin-bottom:8px;}
+#vin .rank{font-size:23px;color:#fffb96;text-align:center;letter-spacing:4px;margin:8px 0;
+  text-shadow:0 0 8px rgba(255,251,150,.8);}
+#vin table{width:100%;font-size:12.5px;border-collapse:collapse;margin:6px 0 10px;}
+#vin td{border-bottom:1px solid #3a2a5e;padding:3px 5px;}
+#vin td:last-child{text-align:right;color:#fffb96;}
+#vin .sp{color:#b967ff;}
+.big{width:100%;padding:10px;background:#1a0b2e;border:2px solid #01cdfe;border-radius:8px;
+  color:#fffb96;font-size:15px;letter-spacing:3px;cursor:pointer;font-family:inherit;margin-top:8px;
+  box-shadow:0 0 10px rgba(1,205,254,.55);}
+#crt{position:fixed;inset:0;z-index:20;pointer-events:none;
+  background:repeating-linear-gradient(transparent 0 2px,rgba(0,0,0,.14) 2px 3px);}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="g" width="320" height="200"></canvas>
+  <div id="msg">──</div>
+  <div id="pad">
+    <div class="grp">
+      <div class="b" data-k="L">◀</div>
+      <div class="b" data-k="R">▶</div>
+    </div>
+    <div class="grp v">
+      <div class="b" data-k="U">▲ 上昇</div>
+      <div class="b" data-k="D">▼ 下降</div>
+    </div>
+    <div class="b fire" data-k="F">🔫<small>撃つ（Z/スペース）</small></div>
+  </div>
+</div>
+<div id="veil"><div id="vin"></div></div>
+<div id="crt"></div>
+
+<script>
+"use strict";
+/* =========================================================================
+   ファクトリー☆リフター — 木曜の野望（プロト）
+   OHMAMA SOFT / 木曜日の迷宮 番外。単一HTML・バニラJS・依存なし。
+   『チョップリフター』（1982）の救出ヘリへのオマージュ。
+   -------------------------------------------------------------------------
+   ＶＡのカタに 敵国工場の 人質にされた 役員32人を、木曜日の練習場（基地）へ 連れ帰る。
+   ・工場を撃つと 扉が開き、役員が 出てくる
+   ・近くに 着陸すると 走って 乗ってくる（定員12人）
+   ・基地の H に 着陸すると 降ろせる＝救出
+   ・敵：ＶＡタンク（地上から 撃ってくる）／催促ジェット（救出8人以降・予告つき・弾1発）
+   ・弾：高空＝斜め下／低空＝水平／▼を押しながら＝真下
+   ・エナジー10（弾−1／体当たり・荒い着陸−3）。0で 爆発し 乗せていた役員も 失う。ヘリは 3機
+   ・基地の H に着陸中は 整備で エナジー回復
+   ========================================================================= */
+
+var W=320, H=200, GROUND=176, WORLD=2400, CAP=12, TOTAL=32, PAD_X=120;
+var HP_MAX=10;   // エナジー：弾1発で −1、0で 爆発
+var cv=document.getElementById('g'), cx=cv.getContext('2d');
+cx.imageSmoothingEnabled=false;
+var K={L:0,R:0,U:0,D:0,F:0};
+var G=null;
+function el(id){ return document.getElementById(id); }
+function say(s){ el('msg').textContent=s; }
+
+/* =========================================================================
+   音（WebAudio合成・外部ファイルなし）
+   ========================================================================= */
+var AC=null, MEDIA_UNLOCKED=false;
+function unlockMedia(){
+  /* iPhoneのサイレントスイッチ対策：無音の<audio>をループ再生して メディア再生扱いにする */
+  if(MEDIA_UNLOCKED) return;
+  try{
+    var sr=8000, n=800;
+    var buf=new ArrayBuffer(44+n), v=new DataView(buf);
+    function ws(o,s){ for(var i=0;i<s.length;i++) v.setUint8(o+i,s.charCodeAt(i)); }
+    ws(0,'RIFF'); v.setUint32(4,36+n,true); ws(8,'WAVE'); ws(12,'fmt ');
+    v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+    v.setUint32(24,sr,true); v.setUint32(28,sr,true); v.setUint16(32,1,true); v.setUint16(34,8,true);
+    ws(36,'data'); v.setUint32(40,n,true);
+    for(var i2=0;i2<n;i2++) v.setUint8(44+i2,128);
+    var a=document.createElement('audio');
+    a.src=URL.createObjectURL(new Blob([buf],{type:'audio/wav'}));
+    a.loop=true; a.volume=0.01; a.setAttribute('playsinline','');
+    var pr=a.play();
+    if(pr&&pr.then) pr.then(function(){ MEDIA_UNLOCKED=true; }).catch(function(){});
+  }catch(e){}
+}
+function initAudio(){
+  unlockMedia();
+  if(AC){ try{ if(AC.state==='suspended') AC.resume(); }catch(e){} return; }
+  try{ var C=window.AudioContext||window.webkitAudioContext; if(C) AC=new C(); }catch(e){ AC=null; }
+}
+function tone(f0,f1,dur,vol,type){
+  if(!AC) return;
+  try{
+    var t=AC.currentTime;
+    var o=AC.createOscillator(), g=AC.createGain();
+    o.type=type||'square';
+    o.frequency.setValueAtTime(f0,t);
+    if(f1) o.frequency.exponentialRampToValueAtTime(f1,t+dur);
+    g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t+dur+0.02);
+  }catch(e){}
+}
+function noise(dur,vol,f0,f1){
+  if(!AC) return;
+  try{
+    var t=AC.currentTime, sr=AC.sampleRate, len=Math.floor(sr*dur);
+    var buf=AC.createBuffer(1,len,sr), d=buf.getChannelData(0), i;
+    for(i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,1.3);
+    var s=AC.createBufferSource(); s.buffer=buf;
+    var lp=AC.createBiquadFilter(); lp.type='lowpass';
+    lp.frequency.setValueAtTime(f0,t); lp.frequency.exponentialRampToValueAtTime(f1,t+dur);
+    var g=AC.createGain(); g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    s.connect(lp); lp.connect(g); g.connect(AC.destination); s.start(t);
+  }catch(e){}
+}
+function sfx(k){
+  if(k==='shot') tone(900,600,0.05,0.07);
+  else if(k==='boom'){ noise(0.5,0.8,1500,120); tone(110,30,0.4,0.35); }
+  else if(k==='small'){ noise(0.25,0.5,2000,200); }
+  else if(k==='board') tone(660,990,0.08,0.10);
+  else if(k==='saved'){ tone(880,1320,0.1,0.10); }
+  else if(k==='land') tone(160,90,0.12,0.15,'triangle');
+  else if(k==='tank') tone(150,80,0.15,0.12);
+  else if(k==='open'){ tone(330,660,0.18,0.12); }
+  else if(k==='hit'){ noise(0.12,0.45,3000,600); tone(300,150,0.08,0.12); }
+}
+
+/* =========================================================================
+   状態
+   ========================================================================= */
+function newHeli(){
+  return {x:PAD_X, y:GROUND-10, vx:0, vy:0, face:1, landed:true, aboard:0,
+          alive:true, inv:120, dead:0, fcd:0, hp:HP_MAX, hitT:0};
+}
+function newGame(){
+  var bs=[900,1300,1750,2200].map(function(x){ return {x:x, hp:3, open:false, left:8, spawnT:0}; });
+  return {t:0, heli:newHeli(), lives:3, saved:0, lost:0, buildings:bs,
+          hostages:[], bullets:[], shells:[], tanks:[], jets:[], parts:[], texts:[],
+          camX:0, tankT:300, jetT:600, unloadT:0, state:'play', downs:0, kills:0,
+          va:0};   // 敵を壊すほど 積み上がる ＶＡ金額（万円）＝うちの単価が 下がる
+}
+function boom(x,y,n){
+  var pal=['#ffe14a','#ff9a4a','#ffffff','#ff5a4a','#c9a6ff'], i;
+  for(i=0;i<n;i++){
+    var a=Math.random()*Math.PI*2, s=1+Math.random()*3.5;
+    G.parts.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1.5,life:40+Math.random()*30,
+                  c:pal[i%pal.length],s:2+Math.floor(Math.random()*3)});
+  }
+}
+function floatTxt(x,y,txt,c){ G.texts.push({x:x,y:y,txt:txt,c:c,life:70}); }
+
+/* =========================================================================
+   更新
+   ========================================================================= */
+function crash(msg){
+  var h=G.heli;
+  if(!h.alive) return;
+  h.alive=false; h.dead=110;
+  boom(h.x,h.y,46); sfx('boom');
+  if(h.aboard>0){ G.lost+=h.aboard; floatTxt(h.x,h.y-18,'役員 '+h.aboard+'人が…','#ff8a7a'); }
+  h.aboard=0;
+  G.lives--; G.downs++;
+  say(msg+(G.lives>0?'　──予備のヘリが 待っとる':'　──もう ヘリが ない…'));
+}
+/* 被弾：エナジーを減らす。0になったら 爆発 */
+function damage(n,msg){
+  var h=G.heli;
+  if(!h.alive) return;
+  h.hp-=n; h.hitT=14; h.inv=Math.max(h.inv,30);
+  boom(h.x,h.y,8); sfx('hit');
+  if(h.hp<=0){ h.hp=0; crash(msg); return; }
+  say('被弾！　エナジー '+h.hp+'/'+HP_MAX+(h.hp<=3?'　──あぶない！ 基地で 休みん（着陸すると 回復）':''));
+}
+function updHeli(){
+  var h=G.heli;
+  if(!h.alive){ h.dead--; return; }
+  if(h.inv>0) h.inv--;
+  if(h.hitT>0) h.hitT--;
+  /* 基地のHに 着陸している間は 少しずつ 整備＝エナジー回復 */
+  if(h.landed && Math.abs(h.x-PAD_X)<=60 && h.hp<HP_MAX && G.t%30===0){
+    h.hp++; if(h.hp===HP_MAX) say('整備完了！　エナジー 満タン');
+  }
+  var ax=(K.R?1:0)-(K.L?1:0);
+  if(ax) h.face=ax;
+  if(h.landed){
+    if(K.U){ h.landed=false; h.vy=-1.3; }
+  }else{
+    h.vx+=ax*0.12; h.vx*=0.975;
+    if(h.vx>3.2) h.vx=3.2; if(h.vx<-3.2) h.vx=-3.2;
+    if(K.U) h.vy-=0.16;
+    if(K.D) h.vy+=0.16;
+    h.vy+=0.025; h.vy*=0.93;
+    if(h.vy>2.4) h.vy=2.4; if(h.vy<-2.2) h.vy=-2.2;
+    h.x+=h.vx; h.y+=h.vy;
+    if(h.y<22){ h.y=22; h.vy=0; }
+    if(h.x<20){ h.x=20; h.vx=0; }
+    if(h.x>WORLD-20){ h.x=WORLD-20; h.vx=0; }
+    if(h.y>=GROUND-10){
+      var hard=h.vy>1.9;
+      h.y=GROUND-10; h.vy=0; h.vx=0; h.landed=true; sfx('land');
+      if(hard){ damage(3,'ドスン！　着陸が 荒すぎて 機体が もたんかった'); if(!h.alive) return; }
+    }
+  }
+  if(h.fcd>0) h.fcd--;
+  if(K.F && h.fcd<=0){
+    h.fcd=9;
+    if(K.D && !h.landed){
+      /* 下降しながら撃つと 真下へ（真下のタンクを 狙い撃ち） */
+      G.bullets.push({x:h.x, y:h.y+9, vx:h.vx*0.3, vy:4.5, life:70});
+    }else{
+      var low=h.landed||h.y>GROUND-40;     // 低空は 水平撃ち、高空は 斜め下撃ち
+      G.bullets.push({x:h.x+h.face*14, y:h.y+4, vx:h.face*5+h.vx*0.5, vy:low?0:2.2, life:70});
+    }
+    sfx('shot');
+  }
+}
+function updBuildings(){
+  G.buildings.forEach(function(b){
+    if(b.open && b.left>0){
+      b.spawnT--;
+      if(b.spawnT<=0){
+        b.spawnT=34; b.left--;
+        G.hostages.push({x:b.x+(Math.random()*10-5), st:'wait', home:b.x, tx:b.x, ph:Math.random()*6});
+      }
+    }
+  });
+}
+function updHostages(){
+  var h=G.heli, i;
+  for(i=G.hostages.length-1;i>=0;i--){
+    var p=G.hostages[i];
+    p.ph+=0.15;
+    if(p.st==='toBase'){
+      p.x-=0.7;
+      if(p.x<=46){ G.saved++; G.hostages.splice(i,1); floatTxt(46,GROUND-34,'+1','#7fd6a2'); sfx('saved'); }
+      continue;
+    }
+    var canBoard=h.alive && h.landed && Math.abs(h.x-p.x)<150 && h.aboard<CAP && Math.abs(h.x-PAD_X)>60;
+    if(canBoard){
+      var d=h.x-p.x;
+      p.x+=(d>0?1:-1)*0.9;
+      if(Math.abs(d)<6){
+        h.aboard++; G.hostages.splice(i,1); sfx('board');
+        if(h.aboard===CAP){ floatTxt(h.x,h.y-24,'満員！','#ffe14a'); say('役員で 満員だに！　基地の H へ 戻りん'); }
+        else if(h.aboard===1) say('役員「た、助かった……！　ＶＡの書類は 置いてきた」');
+      }
+    }else{
+      if(Math.abs(p.x-p.tx)<1) p.tx=p.home+(Math.random()*60-30);
+      p.x+=(p.tx>p.x?1:-1)*0.25;
+    }
+  }
+  /* 基地に着陸＝降ろす */
+  if(h.alive && h.landed && Math.abs(h.x-PAD_X)<=60 && h.aboard>0){
+    G.unloadT--;
+    if(G.unloadT<=0){
+      G.unloadT=10; h.aboard--;
+      G.hostages.push({x:h.x-8, st:'toBase', ph:0});
+      if(h.aboard===0) say('役員を 降ろした！　「……ＶＡの件は、帰ってから 考えよまい」');
+    }
+  }
+}
+function updTanks(){
+  var h=G.heli;
+  G.tankT--;
+  var maxT=Math.min(4, 1+Math.floor((G.saved+G.lost)/8));
+  if(G.tankT<=0 && G.tanks.length<maxT){
+    G.tankT=360;
+    var side=Math.random()<0.5?-1:1;
+    var tx=G.camX+(side>0?W+30:-30);
+    if(tx<520) tx=G.camX+W+30;
+    if(tx>WORLD-30) tx=WORLD-30;
+    if(tx<520) tx=520;
+    G.tanks.push({x:tx, cd:120+Math.random()*60, dir:-1});
+  }
+  G.tanks.forEach(function(t){
+    var target=h.alive?h.x:t.x;
+    var dir=target>t.x?1:-1;
+    if(Math.abs(target-t.x)>40) t.x+=dir*0.35;
+    if(t.x<480) t.x=480;
+    t.dir=dir;
+    t.cd--;
+    if(h.alive && t.cd<=0 && Math.abs(h.x-t.x)<260 && h.inv<=0){
+      t.cd=130+Math.random()*60;
+      var dx=h.x-t.x, dy=h.y-(GROUND-14), L=Math.sqrt(dx*dx+dy*dy)||1;
+      G.shells.push({x:t.x+dir*8, y:GROUND-14, vx:dx/L*2.4, vy:dy/L*2.4, life:200});
+      sfx('tank');
+    }
+  });
+}
+function updJets(){
+  var h=G.heli, i;
+  G.jetT--;
+  /* 催促ジェット：救出8人を超えてから。遠くから 予告つきで 来る（弱め調整） */
+  if(G.saved>=8 && G.jetT<=0 && G.jets.length===0){
+    G.jetT=1100+Math.random()*400;
+    var fromR=Math.random()<0.5;
+    G.jets.push({x:fromR?G.camX+W+220:G.camX-220, y:30+Math.random()*40, vx:fromR?-2.8:2.8, fired:0, warn:true});
+    say('ゴォォ……催促ジェット 接近！　「ＶＡの回答、まだですか！」');
+    sfx('tank');
+  }
+  for(i=G.jets.length-1;i>=0;i--){
+    var j=G.jets[i];
+    j.x+=j.vx;
+    var dxj=h.x-j.x;
+    /* 弾は 1発だけ。ヘリを狙わず、自分の高さを まっすぐ 水平に 撃つ
+       （「！」の警告が出る高さから ずれていれば 当たらない） */
+    if(h.alive && h.inv<=0 && j.fired<1 && dxj*j.vx>0 && Math.abs(dxj)<160 && Math.abs(dxj)>100){
+      j.fired++;
+      G.shells.push({x:j.x+(j.vx>0?10:-10), y:j.y+1, vx:(j.vx>0?1:-1)*3.2, vy:0, life:110});
+    }
+    if(h.alive && h.inv<=0 && Math.abs(dxj)<10 && Math.abs(j.y-h.y)<6){
+      damage(3,'催促ジェットと 衝突した！');
+    }
+    if((j.vx<0 && j.x<G.camX-120) || (j.vx>0 && j.x>G.camX+W+120)) G.jets.splice(i,1);
+  }
+}
+function updBullets(){
+  var i, k;
+  for(i=G.bullets.length-1;i>=0;i--){
+    var b=G.bullets[i], hit=false;
+    b.x+=b.vx; b.y+=b.vy; b.life--;
+    for(k=G.tanks.length-1;k>=0 && !hit;k--){
+      var t=G.tanks[k];
+      if(b.y>=GROUND-16 && Math.abs(b.x-t.x)<14){
+        boom(t.x,GROUND-8,26); sfx('small'); G.tanks.splice(k,1); G.kills++;
+        G.va+=50;
+        floatTxt(t.x,GROUND-24,'撃破！ ＶＡ+50万','#ff8a7a'); hit=true;
+        if(G.kills===1) say('敵国「その戦車代、ＶＡで 払ってもらうよ」──壊すほど うちの単価が 下がるに！');
+      }
+    }
+    for(k=G.jets.length-1;k>=0 && !hit;k--){
+      var j=G.jets[k];
+      if(Math.abs(b.x-j.x)<14 && Math.abs(b.y-j.y)<7){
+        boom(j.x,j.y,24); sfx('small'); G.jets.splice(k,1); G.kills++;
+        G.va+=80;
+        floatTxt(j.x,j.y-10,'撃退！ ＶＡ+80万','#ff8a7a'); hit=true;
+        if(G.kills===1) say('敵国「その戦闘機代、ＶＡで 払ってもらうよ」──壊すほど うちの単価が 下がるに！');
+      }
+    }
+    for(k=0;k<G.buildings.length && !hit;k++){
+      var bd=G.buildings[k];
+      if(!bd.open && Math.abs(b.x-bd.x)<26 && b.y>GROUND-34){
+        bd.hp--; hit=true; boom(b.x,b.y,5);
+        if(bd.hp<=0){
+          bd.open=true; sfx('open');
+          floatTxt(bd.x,GROUND-44,'人質工場が 開いた！','#05ffa1');
+          say('役員が 出てきた！　近くに 着陸すると 乗ってくるに');
+        }
+      }
+    }
+    if(hit || b.y>GROUND || b.life<=0) G.bullets.splice(i,1);
+  }
+}
+function updShells(){
+  var h=G.heli, i;
+  for(i=G.shells.length-1;i>=0;i--){
+    var s=G.shells[i];
+    s.x+=s.vx; s.y+=s.vy; s.life--;
+    if(h.alive && h.inv<=0 && Math.abs(s.x-h.x)<14 && s.y>h.y-9 && s.y<h.y+9){
+      G.shells.splice(i,1); damage(1,'エナジーが 尽きた……撃墜！'); continue;
+    }
+    if(s.y>GROUND || s.y<0 || s.life<=0) G.shells.splice(i,1);
+  }
+}
+function updFx(){
+  var i;
+  for(i=G.parts.length-1;i>=0;i--){
+    var p=G.parts[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.12; p.life--;
+    if(p.y>GROUND){ p.y=GROUND; p.vy*=-0.3; p.vx*=0.6; }
+    if(p.life<=0) G.parts.splice(i,1);
+  }
+  for(i=G.texts.length-1;i>=0;i--){
+    var t=G.texts[i]; t.y-=0.4; t.life--;
+    if(t.life<=0) G.texts.splice(i,1);
+  }
+}
+function updCamera(){
+  var h=G.heli;
+  var target=h.x-W/2+h.vx*18;
+  G.camX+=(target-G.camX)*0.1;
+  if(G.camX<0) G.camX=0;
+  if(G.camX>WORLD-W) G.camX=WORLD-W;
+}
+function step(){
+  G.t++;
+  updHeli(); updBuildings(); updHostages(); updTanks(); updJets();
+  updBullets(); updShells(); updFx(); updCamera();
+  var h=G.heli;
+  if(!h.alive && h.dead<=0){
+    if(G.lives>0){ G.heli=newHeli(); say('予備のヘリで 再出撃！'); }
+    else return endGame(false);
+  }
+  if(G.saved+G.lost>=TOTAL) endGame(true);
+}
+
+/* =========================================================================
+   描画（320×200）
+   ========================================================================= */
+function rect(x,y,w,h,c){ cx.fillStyle=c; cx.fillRect(x,y,w,h); }
+function txt(s,x,y,c,sz){ cx.fillStyle=c; cx.font=(sz||9)+'px "MS Gothic",monospace'; cx.fillText(s,x,y); }
+/* ── ゴルフ場の背景 ── */
+var COURSE_PINS=[640,1100,1520,1980,2320];
+var COURSE_BUNKERS=[{x:560,w:44},{x:1010,w:36},{x:1440,w:52},{x:1880,w:40},{x:2260,w:34}];
+var COURSE_PONDS=[{x:1180,w:70},{x:2050,w:80}];
+function drawTreeLine(off){
+  var i;
+  for(i=-1;i<24;i++){
+    var tx=off+i*16+((i*7)%5);
+    var r=7+((i*13)%4);
+    cx.fillStyle=(i%3===0)?'#1f5a2a':'#2a6a34';
+    cx.beginPath(); cx.arc(tx,GROUND-6-r*0.4,r,0,Math.PI*2); cx.fill();
+  }
+  rect(0,GROUND-6,W,6,'#2a6a34');
+}
+function drawCourse(){
+  var i;
+  COURSE_PONDS.forEach(function(p){
+    rect(p.x-p.w/2,GROUND+4,p.w,8,'#2a6ac0');
+    rect(p.x-p.w/2+4,GROUND+5,p.w-8,2,'#8ad0ff');
+  });
+  COURSE_BUNKERS.forEach(function(b){
+    cx.fillStyle='#e8d8a0';
+    cx.beginPath(); cx.ellipse(b.x,GROUND+8,b.w/2,5,0,0,Math.PI*2); cx.fill();
+    rect(b.x-b.w/2+6,GROUND+7,b.w-12,1,'#d0c088');
+  });
+  for(i=0;i<COURSE_PINS.length;i++){
+    var px=COURSE_PINS[i];
+    rect(px-6,GROUND-1,12,2,'#5ac05a');             // グリーン
+    rect(px,GROUND-30,1,30,'#ffffff');              // ピン
+    var wv=(Math.floor(G.t/10)+i)%2;
+    rect(px+1,GROUND-30,8,5+wv,'#e33a3a');         // 旗（はためく）
+    txt(''+(i+1),px+3,GROUND-26,'#ffffff',6);
+  }
+}
+function drawFuji(x){
+  /* 富士山のふもと：大きく 近くに そびえる */
+  cx.fillStyle='#4a5a8e';
+  cx.beginPath(); cx.moveTo(x-200,GROUND); cx.lineTo(x-34,GROUND-128);
+  cx.lineTo(x+34,GROUND-128); cx.lineTo(x+200,GROUND); cx.closePath(); cx.fill();
+  cx.fillStyle='#5a6a9e';                                   // 山肌の陰影
+  cx.beginPath(); cx.moveTo(x+10,GROUND-128); cx.lineTo(x+34,GROUND-128);
+  cx.lineTo(x+200,GROUND); cx.lineTo(x+90,GROUND); cx.closePath(); cx.fill();
+  cx.fillStyle='#f4f8ff';                                   // 冠雪
+  cx.beginPath(); cx.moveTo(x-34,GROUND-128); cx.lineTo(x+34,GROUND-128);
+  cx.lineTo(x+52,GROUND-100); cx.lineTo(x+34,GROUND-108); cx.lineTo(x+20,GROUND-96);
+  cx.lineTo(x+4,GROUND-110); cx.lineTo(x-14,GROUND-94); cx.lineTo(x-30,GROUND-106);
+  cx.lineTo(x-52,GROUND-100); cx.closePath(); cx.fill();
+}
+function drawBase(){
+  var i;
+  for(i=0;i<4;i++) rect(2+i*30,GROUND-70,2,70,'#c8c8d0');                  // 練習場のネット柱
+  cx.save(); cx.globalAlpha=0.28;
+  for(i=0;i<9;i++) rect(2,GROUND-70+i*8,92,1,'#e8f0e8');                   // ネット
+  for(i=0;i<12;i++) rect(2+i*8,GROUND-70,1,70,'#e8f0e8');
+  cx.restore();
+  rect(18,GROUND-36,56,36,'#5a5a6a'); rect(14,GROUND-40,64,6,'#3a3a4a');     // 格納庫
+  rect(38,GROUND-22,16,22,'#17171c');                                     // 扉
+  txt('木曜',30,GROUND-27,'#fffb96',8);
+  rect(84,GROUND-48,2,48,'#c8c8d0'); rect(86,GROUND-48,18,11,'#ff71ce');  // 旗
+  txt('練習場',4,GROUND-44,'#9a8ac0',8);
+  rect(PAD_X-30,GROUND-1,60,3,'#fffb96');                                 // ヘリパッド
+  txt('H',PAD_X-3,GROUND-3,'#fffb96',9);
+}
+function drawBuilding(b){
+  /* ゴルフ場の隣に建つ 敵国の工場（ノコギリ屋根・煙突） */
+  var x=b.x, i;
+  rect(x+14,GROUND-58,7,26,'#7a5a4a'); rect(x+13,GROUND-60,9,3,'#5a3a2a');   // 煙突
+  if(!b.open){
+    cx.save(); cx.globalAlpha=0.55;
+    for(i=0;i<3;i++){
+      var sy=GROUND-64-((G.t*0.4+i*14)%42), sx=x+18+Math.sin((G.t+i*30)*0.05)*4+(GROUND-64-sy)*0.25;
+      cx.fillStyle='#dcdce6'; cx.beginPath(); cx.arc(sx,sy,3+(GROUND-64-sy)*0.08,0,Math.PI*2); cx.fill();
+    }
+    cx.restore();
+  }
+  rect(x-26,GROUND-30,52,30,b.open?'#6a6a76':'#8a8a96');                    // 工場の壁
+  cx.fillStyle='#4a4a56';                                                   // ノコギリ屋根
+  for(i=0;i<3;i++){
+    var rx=x-26+i*18;
+    cx.beginPath(); cx.moveTo(rx,GROUND-30); cx.lineTo(rx,GROUND-40);
+    cx.lineTo(rx+18,GROUND-30); cx.closePath(); cx.fill();
+    rect(rx+1,GROUND-38,2,7,'#8ad0ff');                                     // 採光窓
+  }
+  rect(x-8,GROUND-18,16,18,b.open?'#000':'#3a3a44');
+  if(!b.open){
+    rect(x-14,GROUND-28,28,9,'#c83a3a'); txt('人質',x-9,GROUND-21,'#ffffff',8);
+    if(b.hp<3){ rect(x-20,GROUND-14,6,1,'#2a2a32'); rect(x+12,GROUND-26,1,8,'#2a2a32'); }
+  }else if(b.left>0){
+    txt(''+b.left,x-3,GROUND-40,'#05ffa1',8);
+  }
+}
+function drawHostage(p){
+  var x=Math.round(p.x), wave=Math.sin(p.ph)>0;
+  rect(x-1,GROUND-12,4,1,'#c8c8d0');            // ロマンスグレー
+  rect(x-1,GROUND-11,4,4,'#f2cda2');            // 顔
+  rect(x-1,GROUND-7,4,5,'#2a2a3a');             // スーツ（役員）
+  rect(x,GROUND-7,2,2,'#ffffff'); rect(x,GROUND-6,2,2,'#c83a3a');   // シャツと ネクタイ
+  rect(x-1,GROUND-2,1,2,'#17171c'); rect(x+2,GROUND-2,1,2,'#17171c');
+  if(p.st==='wait'){                            // 手を振って 助けを呼ぶ
+    rect(wave?x-3:x+4,GROUND-11,1,4,'#2a2a3a');
+    rect(wave?x-3:x+4,GROUND-12,1,1,'#f2cda2');
+  }
+}
+function drawTank(t){
+  var x=Math.round(t.x), h=G.heli;
+  rect(x-12,GROUND-5,24,5,'#2a2a1e');
+  rect(x-10,GROUND-11,20,6,'#6a7a3a');
+  rect(x-5,GROUND-15,10,4,'#5a6a2a');
+  var a=Math.atan2(h.y-(GROUND-14), h.x-x);
+  cx.save(); cx.translate(x,GROUND-13); cx.rotate(a);
+  rect(0,-1,11,2,'#3a4a1a'); cx.restore();
+  txt('ＶＡ',x-8,GROUND-6,'#fffb96',6);
+}
+function drawJet(j){
+  var x=Math.round(j.x), y=Math.round(j.y), f=j.vx>0?1:-1;
+  cx.save(); cx.translate(x,y); cx.scale(f,1);
+  rect(-12,-2,22,4,'#9a9aa8'); rect(10,-1,4,2,'#c8c8d0');
+  rect(-4,-7,6,5,'#7a7a88'); rect(-4,2,6,5,'#7a7a88'); rect(-12,-6,3,4,'#7a7a88');
+  rect(4,-2,3,2,'#8ad0ff');
+  cx.restore();
+}
+function drawHeli(h){
+  if(!h.alive) return;
+  if(h.inv>0 && (G.t>>2)%2) return;
+  cx.save();
+  cx.translate(Math.round(h.x),Math.round(h.y)); cx.scale(h.face,1);
+  if(!h.landed) cx.rotate(h.vx*0.06*h.face);
+  var body=(h.hitT>0 && G.t%4<2)?'#ff8a7a':'#e8e8f0';   // 被弾すると 赤く点滅
+  rect(-10,-6,18,11,body);                      // 胴体
+  rect(4,-5,6,7,'#8ad0ff');                     // キャノピー
+  rect(-10,0,18,2,'#ff71ce');                   // ネオンのライン
+  rect(-25,-4,15,3,'#e8e8f0');                  // テールブーム
+  rect(-27,-9,3,8,'#01cdfe');                   // 尾翼
+  var tr=(G.t%4<2)?1:4;
+  rect(-28,-6-tr/2,1,tr+2,'#d8d8e0');           // テールローター
+  rect(-9,7,18,1,'#9a9a9a'); rect(-6,5,1,2,'#9a9a9a'); rect(5,5,1,2,'#9a9a9a');   // スキッド
+  rect(-1,-9,2,3,'#9a9a9a');                    // マスト
+  var w=20*Math.abs(Math.cos(G.t*0.6))+4;
+  rect(-w,-10,w*2,1,'#e8e8f0');                 // メインローター
+  cx.restore();
+  if(h.aboard>0) txt(''+h.aboard,Math.round(h.x)-3,Math.round(h.y)-13,'#fffb96',8);
+}
+function draw(){
+  /* 青空のゴルフ場 */
+  var gr=cx.createLinearGradient(0,0,0,GROUND);
+  gr.addColorStop(0,'#3a8ae0'); gr.addColorStop(0.7,'#8ecaff'); gr.addColorStop(1,'#d8f0ff');
+  cx.fillStyle=gr; cx.fillRect(0,0,W,GROUND);
+  cx.fillStyle='#fff8d0'; cx.beginPath(); cx.arc(268,30,12,0,Math.PI*2); cx.fill();
+  cx.fillStyle='rgba(255,255,255,0.85)';                                   // 雲
+  var co=-((G.camX*0.05)%400), k;
+  for(k=0;k<3;k++){ var cxp=co+k*200+60;
+    cx.beginPath(); cx.arc(cxp,40,9,0,Math.PI*2); cx.arc(cxp+11,36,11,0,Math.PI*2); cx.arc(cxp+23,41,8,0,Math.PI*2); cx.fill(); }
+  var off=-((G.camX*0.12)%520);
+  for(k=-1;k<=1;k++) drawFuji(off+k*520+180);
+  drawTreeLine(-((G.camX*0.4)%16)-16);
+  /* 芝（刈り目の縞模様・カメラに合わせて流れる） */
+  var sw=32, s0=Math.floor(G.camX/sw);
+  for(k=s0;k*sw<G.camX+W;k++)
+    rect(Math.round(k*sw-G.camX),GROUND,sw,H-GROUND,(k%2===0)?'#3a9a3a':'#48ac48');
+  rect(0,GROUND,W,1,'#8ae08a');
+
+  cx.save(); cx.translate(-Math.round(G.camX),0);
+  drawCourse();
+  drawBase();
+  G.buildings.forEach(drawBuilding);
+  G.hostages.forEach(drawHostage);
+  G.tanks.forEach(drawTank);
+  G.jets.forEach(drawJet);
+  drawHeli(G.heli);
+  G.bullets.forEach(function(b){ rect(Math.round(b.x)-1,Math.round(b.y)-1,2,2,'#fffb96'); });
+  G.shells.forEach(function(s){ rect(Math.round(s.x)-1,Math.round(s.y)-1,3,3,'#ff5a4a'); });
+  G.parts.forEach(function(p){ rect(Math.round(p.x),Math.round(p.y),p.s,p.s,p.c); });
+  G.texts.forEach(function(t){
+    cx.save(); cx.globalAlpha=Math.min(1,t.life/30);
+    txt(t.txt,Math.round(t.x)-t.txt.length*4,Math.round(t.y),t.c,8); cx.restore();
+  });
+  cx.restore();
+
+  /* 催促ジェットの 接近警告（画面の外にいる間、端で「！」が 点滅） */
+  G.jets.forEach(function(j){
+    var sx=j.x-G.camX;
+    if((sx<0||sx>W) && (G.t>>3)%2===0){
+      var ex=sx<0?3:W-17, ey=Math.max(16,Math.min(GROUND-14,Math.round(j.y)-5));
+      rect(ex,ey,14,11,'rgba(200,30,30,0.85)');
+      txt(sx<0?'◀!':'!▶',ex+1,ey+9,'#ffffff',8);
+    }
+  });
+
+  /* HUD */
+  rect(0,0,W,12,'rgba(13,6,33,0.75)');
+  var h=G.heli, hearts='', i;
+  for(i=0;i<G.lives;i++) hearts+='♥';
+  txt('救出 '+G.saved+'/'+TOTAL,4,9,'#05ffa1');
+  txt('搭乗 '+h.aboard+'/'+CAP,76,9,'#fffb96');
+  txt('ＶＡ '+G.va+'万',146,9,G.va>0?'#ff8a7a':'#9a8ac0');
+  txt('ヘリ '+hearts,236,9,'#ff71ce');
+  /* エナジーゲージ（10マス） */
+  rect(0,12,112,9,'rgba(13,6,33,0.6)');
+  txt('エナジー',3,19,'#efe6ff',7);
+  var hp=h.alive?h.hp:0, gc=hp>6?'#05ffa1':(hp>3?'#fffb96':'#ff5a4a');
+  for(i=0;i<HP_MAX;i++){
+    var on=i<hp, blink=(hp<=3 && on && (G.t>>3)%2===0);
+    rect(36+i*7,14,6,5,on?(blink?'#ffffff':gc):'#3a2a4e');
+  }
+  /* ミニマップ */
+  rect(0,H-6,W,6,'rgba(13,6,33,0.85)');
+  var sc=W/WORLD;
+  rect(Math.round(PAD_X*sc)-1,H-5,3,4,'#fffb96');
+  G.buildings.forEach(function(b){ rect(Math.round(b.x*sc)-2,H-5,4,4,b.open?(b.left>0?'#05ffa1':'#5a5a66'):'#c83a3a'); });
+  G.tanks.forEach(function(t){ rect(Math.round(t.x*sc),H-3,2,2,'#ff5a4a'); });
+  if(h.alive) rect(Math.round(h.x*sc)-1,H-6,3,3,'#01cdfe');
+  rect(Math.round(G.camX*sc),H-6,Math.round(W*sc),1,'rgba(255,255,255,0.4)');
+}
+
+/* =========================================================================
+   進行・画面遷移
+   ========================================================================= */
+function endGame(allDone){
+  if(!G || G.state!=='play') return;
+  G.state='over';
+  var s=G.saved, rank, mes, va=G.va, tanka, tmes;
+  if(s>=TOTAL){ rank='役 員 全 員 帰 還'; mes='32人 全員を 救い出した！　今夜の 練習場は 役員で 満員御礼だ。'; }
+  else if(s>=24){ rank='優 良 救 出'; mes='ほぼ全員を 連れ帰った。……数人は まだ 敵国工場で 名刺を 配っとる。'; }
+  else if(s>=16){ rank='な ん と か'; mes='半分は 連れ帰れた。残りの役員は まだ 敵国工場で 手を 振っとる。'; }
+  else if(s>=1){ rank='出 直 し'; mes='連れ帰れたのは '+s+'人。……ヘリの 操縦、木曜に 練習しよまい。'; }
+  else { rank='役 員 不 在'; mes='ひとりも 連れ帰れんかった。……来週の 役員会、誰が 来るだ。'; }
+  /* 単価判定：敵を壊すほど ＶＡ金額が 積み上がり、うちの単価が 下がる */
+  if(va===0){ tanka='単 価 死 守'; tmes='一発も 敵を 壊さずに 帰ってきた。ＶＡ金額 ゼロ。──これぞ 交渉の 極意。'; }
+  else if(va<=200){ tanka='軽 傷'; tmes='ＶＡ金額 '+va+'万円。まあ、これくらいは 手土産だら。'; }
+  else if(va<=500){ tanka='値 下 げ 要 請'; tmes='ＶＡ金額 '+va+'万円。役員は 帰ってきたが、来期の 単価が 下がった……。'; }
+  else { tanka='大 幅 Ｖ Ａ'; tmes='ＶＡ金額 '+va+'万円！　助けた役員から「……壊しすぎだに」と 叱られた。'; }
+  var h='';
+  h+='<h2>'+(allDone?'救 出 作 戦 終 了':'ヘ リ 全 機 喪 失')+'</h2>';
+  h+='<div class="rank">'+rank+'</div>';
+  h+='<table>';
+  h+='<tr><td>救出した 役員</td><td>'+s+' / '+TOTAL+' 人</td></tr>';
+  h+='<tr><td>失った 役員</td><td>'+G.lost+' 人</td></tr>';
+  h+='<tr><td>壊した ＶＡタンク・催促ジェット</td><td>'+G.kills+'</td></tr>';
+  h+='<tr><td>積み上がった ＶＡ金額</td><td>'+va+' 万円</td></tr>';
+  h+='<tr><td>撃墜された 回数</td><td>'+G.downs+'</td></tr>';
+  h+='</table>';
+  h+='<p>'+mes+'</p>';
+  h+='<div class="rank" style="font-size:18px;color:#ff8a7a">'+tanka+'</div>';
+  h+='<p>'+tmes+'</p>';
+  h+='<p class="sp">──格納庫の 隅に、黄色い着ぐるみ。スポンジマン「ヘリの 燃料代、ぼくの 経費で 落としといたからね」</p>';
+  h+='<p style="text-align:center;color:#fffb96;margin-top:10px">— ファクトリー☆リフター・完 —</p>';
+  h+='<button class="big" id="ag">もういちど 出撃</button>';
+  setTimeout(function(){
+    el('vin').innerHTML=h; el('veil').classList.remove('hide');
+    el('ag').onclick=function(){ initAudio(); startGame(); };
+  }, 900);
+}
+function startGame(){
+  G=newGame();
+  el('veil').classList.add('hide');
+  say('基地から 発進！　ゴルフ場の 隣の 敵国工場に 役員が 囚われとる');
+}
+function title(){
+  var h='';
+  h+='<h2>ファクトリー☆リフター</h2>';
+  h+='<p style="text-align:center;color:#b967ff;font-size:10px;letter-spacing:2px;margin-top:-4px">ＦＡＣＴＯＲＹ　☆　ＬＩＦＴＥＲ</p>';
+  h+='<p style="text-align:center;color:#8a7ab0;font-size:11px">木曜の野望 ─ OHMAMA SOFT</p>';
+  h+='<p>富士山のふもと、ゴルフ場の 隣に 建つ 敵国の工場。──ＶＡのカタに、うちの 役員 32人が 人質に された！　ヘリで 救い出して、木曜日の練習場（基地）へ 連れ帰れ。</p>';
+  h+='<p style="color:#7fd6a2">◆ <b>人質工場を撃つ</b>と 扉が開いて 役員が 出てくる<br>'
+    +'◆ <b>近くに着陸</b>すると 走って 乗ってくる（12人まで）<br>'
+    +'◆ 基地の <b>H に着陸</b>すると 降ろせる＝救出<br>'
+    +'◆ 高い所から撃つと <b>斜め下</b>、低い所からは <b>水平</b>、<b>▼を押しながら</b>撃つと <b>真下</b>に 飛ぶ</p>';
+  h+='<p style="color:#ff9a4a">◆ 敵：ＶＡタンク（地上から撃つ）・催促ジェット（救出8人を超えると「！」の 予告つきで 来る。弾は 自分の高さに 水平に1発だけ＝「！」の高さから ずれれば よけられる）<br>'
+    +'◆ ただし <b>敵を壊すほど ＶＡ金額が 積み上がり、うちの単価が 下がる</b>。撃つか 避けるか──<br>'
+    +'◆ <b>エナジー10</b>：弾を受けると −1、体当たり・荒い着陸は −3。0で 爆発し、乗せていた役員も 失う。ヘリは 3機<br>'
+    +'◆ 基地の H に 着陸している間は 整備されて エナジーが 回復する</p>';
+  h+='<p style="color:#9a8ac0;font-size:11px">キーボード：←→ 移動　↑ 上昇　↓ 下降　Z・スペース 撃つ</p>';
+  h+='<button class="big" id="st">出 撃</button>';
+  el('vin').innerHTML=h;
+  el('st').onclick=function(){ initAudio(); startGame(); };
+}
+
+/* =========================================================================
+   入力
+   ========================================================================= */
+function bindPad(){
+  var bs=document.querySelectorAll('#pad .b'), i;
+  for(i=0;i<bs.length;i++){
+    (function(b){
+      var k=b.getAttribute('data-k');
+      function on(e){ e.preventDefault(); initAudio(); K[k]=1; b.classList.add('on');
+        if(e.pointerId!==undefined && b.setPointerCapture){ try{ b.setPointerCapture(e.pointerId); }catch(x){} } }
+      function off(e){ if(e) e.preventDefault(); K[k]=0; b.classList.remove('on'); }
+      b.addEventListener('pointerdown',on);
+      b.addEventListener('pointerup',off);
+      b.addEventListener('pointercancel',off);
+      b.addEventListener('lostpointercapture',function(){ K[k]=0; b.classList.remove('on'); });
+      b.addEventListener('contextmenu',function(e){ e.preventDefault(); });
+    })(bs[i]);
+  }
+  var map={ArrowLeft:'L',ArrowRight:'R',ArrowUp:'U',ArrowDown:'D',KeyZ:'F',Space:'F'};
+  document.addEventListener('keydown',function(e){
+    var k=map[e.code]; if(!k) return; e.preventDefault(); initAudio(); K[k]=1;
+  });
+  document.addEventListener('keyup',function(e){
+    var k=map[e.code]; if(!k) return; e.preventDefault(); K[k]=0;
+  });
+  window.addEventListener('blur',function(){ K.L=K.R=K.U=K.D=K.F=0; });
+  document.addEventListener('dblclick',function(e){ e.preventDefault(); });
+  document.addEventListener('gesturestart',function(e){ e.preventDefault(); });
+}
+
+/* =========================================================================
+   ループ（60fps固定ステップ）
+   ========================================================================= */
+var lastTs=0, acc=0;
+function frame(ts){
+  if(!lastTs) lastTs=ts;
+  var dt=ts-lastTs; lastTs=ts;
+  if(dt>100) dt=100;
+  acc+=dt;
+  while(acc>=16.67){ if(G && G.state==='play') step(); acc-=16.67; }
+  if(G) draw();
+  requestAnimationFrame(frame);
+}
+
+bindPad();
+G=newGame(); G.state='title';
+title();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
