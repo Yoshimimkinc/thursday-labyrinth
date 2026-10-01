@@ -549,7 +549,7 @@ const GOLF = {
   onWin:(e)=>{ if(e.par) state.parDone+=e.par; },
   bossCleared:()=>'2パットで ホールアウト!\n（このホール スコア '+golfScoreLabel()+'）',
   kengeCleared:()=>'三重苦の権化を 払いのけた！\nさあ、表彰式へ——',
-  battleWon:()=>'ナイスショット! 次の 地点へ 進めるぞ。\n（現在 スコア '+golfScoreLabel()+'）',
+  battleWon:()=>'ナイスショット！　ボールの 落下地点へ 歩いていく——\n（現在 スコア '+golfScoreLabel()+'）',
 };
 
 /* 編レジストリ（ここに足すだけで タイトルの選択肢に出る） */
@@ -874,10 +874,13 @@ function drawRoomBG(id){
     case 'fairway':
       cls('#8ecaff'); rect(0,0,W,70,'#aee0ff');
       rect(0,110,W,H-110,'#2a7a32');                                // フェアウェイ
-      rect(90,98,140,14,'#4a9a4a');                                 // 奥のグリーン
-      rect(150,70,2,30,'#ccc');rect(152,70,12,7,'#e33');            // ピン
-      rect(40,150,72,28,'#2a6abf');                                 // 池の縁
-      circle(150,160,4,'#fff');                                     // ボール(自分)
+      rect(90,94,140,18,'#4a9a4a');                                 // 奥のグリーン
+      rect(158,62,2,34,'#eee');rect(160,62,14,8,'#e33');            // ピン（グリーン上）
+      rect(60,118,200,24,'#16407e');                                // 池（グリーン手前を横断・濃紺）
+      rect(64,120,192,7,'#2a6ac0');                                 // 水面の照り
+      rect(80,131,44,3,'#8ad0ff');rect(150,135,56,3,'#8ad0ff');     // 波紋
+      rect(54,116,8,28,'#8a6a3a');rect(258,116,8,28,'#8a6a3a');     // 土手
+      circle(160,166,4,'#fff');                                     // ボール(自分・手前)
       break;
     case 'green':
       cls('#9ad0ff'); rect(0,0,W,60,'#bfe6ff');
@@ -1217,7 +1220,16 @@ function winBattle(){
   if(SCENARIO.rooms[state.loc].boss){
     return show('システム', WORLD.bossCleared(), 'ok', ()=>runTwist());
   }
-  show('システム', WORLD.battleWon(), 'ok', ()=>ownerHitokoto(()=>resetPanel()));
+  const afterWin=()=>{
+    if(state.world==='golf'){
+      /* ⛳ 打ったら その場に残らず、ボールの落下地点へ 自動で歩いて進む */
+      const exs=SCENARIO.rooms[state.loc].exits||[];
+      const ex=exs.find(x=>x.needClear)||exs[0];
+      if(ex) return doMove(ex.to);
+    }
+    resetPanel();
+  };
+  show('システム', WORLD.battleWon(), 'ok', ()=>ownerHitokoto(afterWin));
 }
 
 /* どんでん返し：案内人 → 正体（権化）戦。演出は WORLD.twist に定義 */
@@ -1267,6 +1279,10 @@ function triggerEnding(){
 ══════════════════════════════════════════════════════════ */
 function init(){
   if(/Line\//i.test(navigator.userAgent)) document.getElementById('lineBanner').classList.add('show');
+  /* 直リンク：index.html?world=golf で その編を 即スタート */
+  let wkey=null;
+  try{ wkey=new URLSearchParams(location.search).get('world'); }catch(e){}
+  if(wkey && WORLDS[wkey]) return startWorld(wkey);
   chooseWorld();
 }
 /* タイトル：WORLD_MENU を並べて 編を選ばせる */
@@ -1279,7 +1295,7 @@ function chooseWorld(){
   document.getElementById('sceneLabel').textContent='タイトル';
   const spk=document.getElementById('txSpk'), body=document.getElementById('txBody');
   spk.textContent='OHMAMA SOFT'; body.className='text-body sys';
-  body.textContent='いらっしゃい。今夜は どちらで 遊びますか?\n\n🏭 工場編 … 迷宮化した工場を 脱出せよ\n⛳ ゴルフ編 … 約束の1番ホールを 攻略せよ';
+  body.textContent='いらっしゃい。今夜は どちらで 遊びますか?\n\n🏭 工場編 … 迷宮化した工場を 脱出せよ\n⛳ ゴルフコンペ編 … 3分で 三重苦を 払え';
   const panel=document.getElementById('targetPanel');
   panel.innerHTML='<div class="target-label">▶ シリーズを えらんでください</div>';
   WORLD_MENU.forEach(m=>{
