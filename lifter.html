@@ -5,32 +5,47 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>ファクトリー☆リフター — 木曜の野望</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0;touch-action:manipulation;}
-#pad .b,#g{touch-action:none;}
-html,body{min-height:100%;background:#0d0621;color:#efe6ff;
+/* スクロール・タップ拡大は 絶対に させない（ゲーム画面は 全面 touch-action:none） */
+*{box-sizing:border-box;margin:0;padding:0;touch-action:none;}
+html,body{position:fixed;inset:0;width:100%;height:100%;overflow:hidden;
+  background:#0d0621;color:#efe6ff;
   font-family:'MS Gothic','Osaka-Mono','Hiragino Kaku Gothic ProN',monospace;
   -webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;
-  -webkit-user-select:none;user-select:none;overscroll-behavior:none;}
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;overscroll-behavior:none;}
 body{display:flex;justify-content:center;}
-#wrap{width:100%;max-width:520px;min-height:100vh;padding:6px 6px 12px;
+#wrap{width:100%;max-width:520px;height:100%;height:100dvh;padding:6px 6px 10px;overflow:hidden;
+  display:flex;flex-direction:column;
   background:linear-gradient(#0d0621 0%,#1d0f3f 60%,#3a1a5e 100%);}
-#g{display:block;width:100%;height:auto;image-rendering:pixelated;image-rendering:crisp-edges;
+#g{display:block;width:100%;height:auto;image-rendering:pixelated;image-rendering:crisp-edges;flex:none;
   border:2px solid #b967ff;border-radius:8px;box-shadow:0 0 10px rgba(185,103,255,.5);background:#000;}
-#msg{min-height:22px;margin:6px 0;font-size:12.5px;line-height:1.6;color:#d8c8ff;text-align:center;}
-#pad{display:grid;grid-template-columns:1.25fr 1fr 1.05fr;gap:8px;margin-top:4px;}
-.grp{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
-.grp.v{grid-template-columns:1fr;}
-.b{border:2px solid #01cdfe;border-radius:10px;background:#1a0b2e;color:#fffb96;
+#msg{min-height:22px;margin:6px 0 2px;font-size:12.5px;line-height:1.5;color:#d8c8ff;text-align:center;flex:none;}
+/* ── ファミコン式コントローラー（左＝十字キー／右＝Ａ・Ｂ） ── */
+#ctrl{flex:1;display:flex;align-items:center;justify-content:space-between;padding:0 4px 4px;min-height:0;}
+#dpad{position:relative;width:min(46vw,200px);height:min(46vw,200px);flex:none;}
+#dpad .arm{position:absolute;background:#1a0b2e;border:2px solid #01cdfe;color:#fffb96;
+  display:flex;align-items:center;justify-content:center;font-size:20px;
+  box-shadow:0 0 8px rgba(1,205,254,.45);}
+#dpad .u{left:33.3%;top:0;width:33.4%;height:36%;border-radius:10px 10px 0 0;border-bottom:none;}
+#dpad .d{left:33.3%;bottom:0;width:33.4%;height:36%;border-radius:0 0 10px 10px;border-top:none;}
+#dpad .l{left:0;top:33.3%;width:36%;height:33.4%;border-radius:10px 0 0 10px;border-right:none;}
+#dpad .r{right:0;top:33.3%;width:36%;height:33.4%;border-radius:0 10px 10px 0;border-left:none;}
+#dpad .c{left:33.3%;top:33.3%;width:33.4%;height:33.4%;background:#1a0b2e;position:absolute;}
+#dpad .c:after{content:'';position:absolute;left:30%;top:30%;width:40%;height:40%;border-radius:50%;background:#2a1a4a;}
+#dpad .arm.on{background:#3a1a5e;color:#ffffff;}
+#ab{position:relative;width:min(44vw,190px);height:min(40vw,170px);flex:none;}
+.btn{position:absolute;width:44%;aspect-ratio:1;border-radius:50%;
   display:flex;align-items:center;justify-content:center;flex-direction:column;
-  font-size:22px;height:62px;cursor:pointer;
-  box-shadow:0 0 8px rgba(1,205,254,.45),inset 0 0 8px rgba(255,113,206,.12);}
-.grp.v .b{height:28px;font-size:16px;}
-.b.on{background:#3a1a5e;}
-.b.fire{border-color:#ff71ce;box-shadow:0 0 10px rgba(255,113,206,.55);font-size:24px;}
-.b small{font-size:9px;color:#9a8ac0;margin-top:2px;}
+  font-size:24px;font-weight:bold;color:#fff;border:3px solid #ff71ce;background:#3a0a2a;
+  box-shadow:0 0 12px rgba(255,113,206,.55),inset 0 -4px 0 rgba(0,0,0,.35);}
+.btn small{font-size:10px;font-weight:normal;color:#ffc8ec;margin-top:1px;}
+.btn.a{right:2%;top:4%;}
+.btn.b{left:2%;bottom:4%;border-color:#01cdfe;background:#0a2a3a;box-shadow:0 0 12px rgba(1,205,254,.55),inset 0 -4px 0 rgba(0,0,0,.35);}
+.btn.b small{color:#c8f0ff;}
+.btn.on{transform:translateY(2px);filter:brightness(1.4);}
 #veil{position:fixed;inset:0;background:rgba(13,6,33,.96);z-index:9;display:flex;
   align-items:center;justify-content:center;padding:14px;}
 #veil.hide{display:none;}
+#vin,#vin *{touch-action:pan-y;}
 #vin{max-width:420px;width:100%;max-height:96vh;overflow-y:auto;border:2px solid #b967ff;
   border-radius:8px;padding:14px;font-size:13px;line-height:1.75;background:#12081f;
   box-shadow:0 0 14px rgba(185,103,255,.55);}
@@ -54,16 +69,16 @@ body{display:flex;justify-content:center;}
 <div id="wrap">
   <canvas id="g" width="320" height="200"></canvas>
   <div id="msg">──</div>
-  <div id="pad">
-    <div class="grp">
-      <div class="b" data-k="L">◀</div>
-      <div class="b" data-k="R">▶</div>
+  <div id="ctrl">
+    <div id="dpad">
+      <div class="arm u">▲</div><div class="arm d">▼</div>
+      <div class="arm l">◀</div><div class="arm r">▶</div>
+      <div class="c"></div>
     </div>
-    <div class="grp v">
-      <div class="b" data-k="U">▲ 上昇</div>
-      <div class="b" data-k="D">▼ 下降</div>
+    <div id="ab">
+      <div class="btn b" data-k="B">B<small>真下</small></div>
+      <div class="btn a" data-k="F">A<small>撃つ</small></div>
     </div>
-    <div class="b fire" data-k="F">🔫<small>撃つ（Z/スペース）</small></div>
   </div>
 </div>
 <div id="veil"><div id="vin"></div></div>
@@ -90,7 +105,7 @@ var W=320, H=200, GROUND=176, WORLD=2400, CAP=12, TOTAL=32, PAD_X=120;
 var HP_MAX=10;   // エナジー：弾1発で −1、0で 爆発
 var cv=document.getElementById('g'), cx=cv.getContext('2d');
 cx.imageSmoothingEnabled=false;
-var K={L:0,R:0,U:0,D:0,F:0};
+var K={L:0,R:0,U:0,D:0,F:0,B:0};
 var G=null;
 function el(id){ return document.getElementById(id); }
 function say(s){ el('msg').textContent=s; }
@@ -237,9 +252,9 @@ function updHeli(){
     }
   }
   if(h.fcd>0) h.fcd--;
-  if(K.F && h.fcd<=0){
+  if((K.F||K.B) && h.fcd<=0){
     h.fcd=9;
-    if(K.D && !h.landed){
+    if(!h.landed && (K.B || K.D)){
       /* 下降しながら撃つと 真下へ（真下のタンクを 狙い撃ち） */
       G.bullets.push({x:h.x, y:h.y+9, vx:h.vx*0.3, vy:4.5, life:70});
     }else{
@@ -704,7 +719,8 @@ function title(){
     +'◆ ただし <b>敵を壊すほど ＶＡ金額が 積み上がり、うちの単価が 下がる</b>。撃つか 避けるか──<br>'
     +'◆ <b>エナジー10</b>：弾を受けると −1、体当たり・荒い着陸は −3。0で 爆発し、乗せていた役員も 失う。ヘリは 3機<br>'
     +'◆ 基地の H に 着陸している間は 整備されて エナジーが 回復する</p>';
-  h+='<p style="color:#9a8ac0;font-size:11px">キーボード：←→ 移動　↑ 上昇　↓ 下降　Z・スペース 撃つ</p>';
+  h+='<p style="color:#fffb96">◆ 操作：左手の <b>十字キー</b>で 移動・上昇・下降（親指を 滑らせると 斜めも）、右手の <b>Ａ＝撃つ</b>、<b>Ｂ＝真下に撃つ</b></p>';
+  h+='<p style="color:#9a8ac0;font-size:11px">キーボード：矢印キー 移動　Z・スペース＝Ａ　X＝Ｂ</p>';
   h+='<button class="big" id="st">出 撃</button>';
   el('vin').innerHTML=h;
   el('st').onclick=function(){ initAudio(); startGame(); };
@@ -714,28 +730,57 @@ function title(){
    入力
    ========================================================================= */
 function bindPad(){
-  var bs=document.querySelectorAll('#pad .b'), i;
+  /* ── 十字キー：親指を 置いたまま 滑らせると 8方向（斜めも可） ── */
+  var dp=el('dpad'), arms={U:dp.querySelector('.u'),D:dp.querySelector('.d'),L:dp.querySelector('.l'),R:dp.querySelector('.r')};
+  var dpId=null;
+  function dpSet(e){
+    var r=dp.getBoundingClientRect();
+    var dx=(e.clientX-(r.left+r.width/2))/(r.width/2), dy=(e.clientY-(r.top+r.height/2))/(r.height/2);
+    var dead=0.28;
+    K.L=dx<-dead?1:0; K.R=dx>dead?1:0; K.U=dy<-dead?1:0; K.D=dy>dead?1:0;
+    for(var k in arms) arms[k].classList.toggle('on',!!K[k]);
+  }
+  function dpClear(){ K.L=K.R=K.U=K.D=0; dpId=null; for(var k in arms) arms[k].classList.remove('on'); }
+  dp.addEventListener('pointerdown',function(e){
+    e.preventDefault(); initAudio(); dpId=e.pointerId;
+    try{ dp.setPointerCapture(e.pointerId); }catch(x){}
+    dpSet(e);
+  });
+  dp.addEventListener('pointermove',function(e){ if(e.pointerId===dpId){ e.preventDefault(); dpSet(e); } });
+  dp.addEventListener('pointerup',function(e){ if(e.pointerId===dpId) dpClear(); });
+  dp.addEventListener('pointercancel',function(e){ if(e.pointerId===dpId) dpClear(); });
+  dp.addEventListener('lostpointercapture',function(e){ if(e.pointerId===dpId) dpClear(); });
+  /* ── Ａ・Ｂボタン ── */
+  var bs=document.querySelectorAll('#ab .btn'), i;
   for(i=0;i<bs.length;i++){
     (function(b){
       var k=b.getAttribute('data-k');
       function on(e){ e.preventDefault(); initAudio(); K[k]=1; b.classList.add('on');
-        if(e.pointerId!==undefined && b.setPointerCapture){ try{ b.setPointerCapture(e.pointerId); }catch(x){} } }
+        try{ b.setPointerCapture(e.pointerId); }catch(x){} }
       function off(e){ if(e) e.preventDefault(); K[k]=0; b.classList.remove('on'); }
       b.addEventListener('pointerdown',on);
       b.addEventListener('pointerup',off);
       b.addEventListener('pointercancel',off);
       b.addEventListener('lostpointercapture',function(){ K[k]=0; b.classList.remove('on'); });
-      b.addEventListener('contextmenu',function(e){ e.preventDefault(); });
     })(bs[i]);
   }
-  var map={ArrowLeft:'L',ArrowRight:'R',ArrowUp:'U',ArrowDown:'D',KeyZ:'F',Space:'F'};
+  /* ── スクロール・タップ拡大の 完全防止（説明画面の スクロールだけ 許可） ── */
+  function inVeil(t){ return t && t.closest && t.closest('#vin'); }
+  document.addEventListener('touchmove',function(e){ if(!inVeil(e.target)) e.preventDefault(); },{passive:false});
+  document.addEventListener('touchstart',function(e){ if(e.touches.length>1 && !inVeil(e.target)) e.preventDefault(); },{passive:false});
+  ['#ctrl','#g','#msg'].forEach(function(sel){
+    var n=document.querySelector(sel);
+    if(n) n.addEventListener('touchend',function(e){ e.preventDefault(); },{passive:false});   // iOSの ダブルタップ拡大を 封じる
+  });
+  document.addEventListener('contextmenu',function(e){ if(!inVeil(e.target)) e.preventDefault(); });
+  var map={ArrowLeft:'L',ArrowRight:'R',ArrowUp:'U',ArrowDown:'D',KeyZ:'F',Space:'F',KeyX:'B'};
   document.addEventListener('keydown',function(e){
     var k=map[e.code]; if(!k) return; e.preventDefault(); initAudio(); K[k]=1;
   });
   document.addEventListener('keyup',function(e){
     var k=map[e.code]; if(!k) return; e.preventDefault(); K[k]=0;
   });
-  window.addEventListener('blur',function(){ K.L=K.R=K.U=K.D=K.F=0; });
+  window.addEventListener('blur',function(){ K.L=K.R=K.U=K.D=K.F=K.B=0; });
   document.addEventListener('dblclick',function(e){ e.preventDefault(); });
   document.addEventListener('gesturestart',function(e){ e.preventDefault(); });
 }
