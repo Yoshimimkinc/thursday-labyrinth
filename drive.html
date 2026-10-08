@@ -210,6 +210,14 @@ function placeSprites(){
       if(n%9===4) addSprite(n,'lantern',(r2<0.5?-1.12:1.12));
     }
   }
+  /* 時々 出てくる 過激な 広告看板 */
+  var BILL=['Fuck ROIC！','やめよう\n不当な コスト削減'], bi=0;
+  for(n=420;n<goalZ/SEG-200;n+=640){
+    var bk=STG[segments[n].st].key;
+    if(bk==='bigsight') continue;
+    addSprite(n,'billboard',(bi%2===0)?-2.0:2.0,BILL[bi%2],bi%2);
+    bi++;
+  }
   /* スタート・チェックポイント・ゴールの ゲート */
   addSprite(12,'gate',0,'START 静岡');
   for(s=1;s<STG.length;s++){
@@ -567,6 +575,14 @@ function stageMsg(k){
    ========================================================================= */
 function rect(x,y,w,h,c){ cx.fillStyle=c; cx.fillRect(x,y,w,h); }
 function txt(s,x,y,c,sz,al){ cx.fillStyle=c; cx.font=(sz||9)+'px "MS Gothic",monospace'; cx.textAlign=al||'left'; cx.fillText(s,x,y); cx.textAlign='left'; }
+/* 文字が 幅maxWに 収まるよう フォントを 縮める（設定した ピクセル数を 返す） */
+function fitFont(s,pre,fam,size,maxW){
+  var fz=Math.max(1,size);
+  cx.font=pre+fz+'px '+fam;
+  var mw=cx.measureText(s).width;
+  if(mw>maxW && mw>0){ fz=Math.max(1,Math.floor(fz*maxW/mw)); cx.font=pre+fz+'px '+fam; }
+  return fz;
+}
 function poly(x1,y1,x2,y2,x3,y3,x4,y4,c){
   cx.fillStyle=c; cx.beginPath(); cx.moveTo(x1,y1); cx.lineTo(x2,y2); cx.lineTo(x3,y3); cx.lineTo(x4,y4); cx.closePath(); cx.fill();
 }
@@ -760,6 +776,30 @@ function drawSprite(sp,x,y,u,night){
       }
       rect(x-w/2,y-h*0.08,w,h*0.08,'#6a6a76');
       if(h>14) txt('東京ビッグサイト',x,y-h*1.05,'#ffffff',Math.min(14,Math.floor(h*0.12)),'center');
+      break;
+    case 'billboard':                               // 過激な 広告看板（足つき）
+      w=1.5*u; h=0.55*u; if(w<4) return;
+      var by=y-h*2.1;
+      rect(x-w*0.32,by+h,Math.max(1,w*0.04),h*1.1,'#5a5a66');
+      rect(x+w*0.28,by+h,Math.max(1,w*0.04),h*1.1,'#5a5a66');
+      if(sp.v===0){                                 // Fuck ROIC！：黒地に 黄色枠・赤文字
+        rect(x-w/2,by,w,h,'#ffd24a');
+        rect(x-w/2+Math.max(1,w*0.03),by+Math.max(1,w*0.03),w-2*Math.max(1,w*0.03),h-2*Math.max(1,w*0.03),'#17171c');
+        if(h>7){
+          var fz=fitFont(sp.text,'bold ','"Arial Black","MS Gothic",sans-serif',Math.min(22,Math.floor(h*0.48)),w*0.86);
+          cx.textAlign='center'; cx.fillStyle=(G.t>>4)%2?'#ff3a3a':'#ff7a7a';
+          cx.fillText(sp.text,x,by+h*0.5+fz*0.36); cx.textAlign='left';
+        }
+      }else{                                        // やめよう 不当なコスト削減：白地に 赤文字
+        rect(x-w/2,by,w,h,'#c83a3a');
+        rect(x-w/2+Math.max(1,w*0.03),by+Math.max(1,w*0.03),w-2*Math.max(1,w*0.03),h-2*Math.max(1,w*0.03),'#f8f4ea');
+        if(h>9){
+          var ln=sp.text.split('\n');
+          var fsz=fitFont(ln[1],'','"MS Gothic",monospace',Math.min(16,Math.floor(h*0.32)),w*0.88);
+          txt(ln[0],x,by+h*0.42,'#c83a3a',fsz,'center');
+          txt(ln[1],x,by+h*0.8,'#c83a3a',fsz,'center');
+        }
+      }
       break;
     case 'gate':                                    // スタート／チェックポイント／ゴールの ゲート
       w=2.5*u; h=1.1*u; if(w<4) return;
