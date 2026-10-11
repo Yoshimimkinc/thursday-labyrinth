@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>木曜日の迷宮／木曜の野望 ゲーム入口</title>
+<link rel="icon" href="data:image/svg+xml,<svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2011%2011%22%20shape-rendering=%22crispEdges%22><path%20fill=%22%23DA7756%22%20d=%22M2%201h1v1h-1zM8%201h1v1h-1zM3%202h1v1h-1zM7%202h1v1h-1zM2%203h7v1h-7zM1%204h2v1h-2zM4%204h3v1h-3zM8%204h2v1h-2zM0%205h11v1h-11zM0%206h1v1h-1zM2%206h7v1h-7zM10%206h1v1h-1zM0%207h1v1h-1zM2%207h1v1h-1zM8%207h1v1h-1zM10%207h1v1h-1zM3%208h2v1h-2zM6%208h2v1h-2z%22/><path%20fill=%22%231A1A22%22%20d=%22M3%204h1v1h-1zM7%204h1v1h-1z%22/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d0d1a;--panel:#171730;--line:#2d2d5a;--fg:#f2f2ff;--dim:#9a9ac8;--accent:#ffd23f;--pink:#ff71ce;--cyan:#01cdfe}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--fg);touch-action:manipulation;overflow-x:hidden}
+body{font-family:"DotGothic16","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;line-height:1.55;
+  padding:0 16px calc(32px + env(safe-area-inset-bottom));
+  background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px);background-size:100% 4px}
+.wrap{max-width:760px;margin:0 auto}
+header{text-align:center;padding:28px 0 18px}
+.en{font-family:"Press Start 2P",monospace;font-size:10px;color:var(--cyan);letter-spacing:1px;margin:0 0 12px}
+h1{margin:0;font-size:26px;line-height:1.3;color:var(--accent);text-shadow:3px 3px 0 #b3401c,0 0 14px rgba(255,210,63,.35)}
+h1 small{display:block;font-size:16px;color:var(--pink);text-shadow:2px 2px 0 #5a1a4a;margin-top:4px}
+.tag{margin:14px 0 0;color:var(--dim);font-size:15px}
+.blink{font-family:"Press Start 2P",monospace;font-size:10px;color:var(--fg);margin:16px 0 0;animation:bl 1.1s steps(2) infinite}
+@keyframes bl{50%{opacity:.25}}
+h2{font-family:"Press Start 2P",monospace;font-size:10px;color:var(--cyan);margin:22px 0 10px;font-weight:normal}
+.grid{display:grid;grid-template-columns:1fr;gap:12px;margin:0;padding:0;list-style:none}
+@media(min-width:620px){.grid{grid-template-columns:1fr 1fr}}
+.card{position:relative;display:grid;grid-template-columns:72px 1fr;gap:12px;align-items:center;min-height:104px;
+  padding:12px;background:var(--panel);border:3px solid var(--line);color:var(--fg);text-decoration:none;
+  box-shadow:4px 4px 0 #000;touch-action:manipulation;border-radius:2px}
+.card:hover{border-color:var(--c)}
+.card:focus-visible{outline:none;border-color:var(--c);box-shadow:4px 4px 0 #000,0 0 0 3px var(--c);transform:translate(-1px,-1px)}
+.card:active{transform:translate(2px,2px);box-shadow:2px 2px 0 #000}
+.ico{width:72px;height:72px;background:#05050d;border:2px solid var(--c);display:block}
+.ico canvas{width:100%;height:100%;display:block;image-rendering:pixelated}
+.t{font-size:17px;line-height:1.3;margin:0 0 4px;color:var(--c);display:block}
+.b{font-size:13.5px;color:#d8d8f0;margin:0 0 6px;display:block}
+.g{display:inline-block;font-family:"DotGothic16",sans-serif;font-size:11px;padding:2px 6px;background:var(--c);color:#111;margin-right:6px}
+.go{font-family:"Press Start 2P",monospace;font-size:8px;color:var(--c)}
+.new{position:absolute;top:-8px;right:-4px;font-family:"Press Start 2P",monospace;font-size:9px;background:#e8262b;color:#fff;padding:4px 6px;border:2px solid #fff;animation:bl 1s steps(2) infinite}
+.pin{grid-column:1/-1}
+footer{margin-top:28px;text-align:center;color:var(--dim);font-size:12.5px}
+footer b{font-family:"Press Start 2P",monospace;font-size:8px;font-weight:normal;color:var(--accent)}
+@media(prefers-reduced-motion:reduce){.blink,.new{animation:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <p class="en">OHMAMA SOFT ADVENTURE SERIES</p>
+  <h1>木曜日の迷宮<small>／木曜の野望</small></h1>
+  <p class="tag">木曜の朝にゃあ、新しいゲームが増えとるだら。<br>好きなカセット選んで、やらまいか！</p>
+  <p class="blink">&#9654; SELECT GAME</p>
+</header>
+
+<h2>NEW &amp; PICKUP</h2>
+<ul class="grid" id="g1"></ul>
+<h2>COLLECTION</h2>
+<ul class="grid" id="g2"></ul>
+
+<footer>
+  <b>&#8592;&#8593;&#8595;&#8594;</b> で選んで <b>ENTER</b> で始まるに。<br>
+  スマホは縦持ちで、カードをポンと触ればええだよ。<br>
+  遊びすぎて、木曜の練習会に遅れんようにな。
+</footer>
+</div>
+
+<script>
+(function(){
+  var GAMES=[
+   {h:'drive.html',t:'木曜日のドライブ',g:'レース',c:'#ff71ce',nw:1,ic:'car',
+    b:'静岡から東名で東京ビッグサイトへ、帰りはブロックKを通って静岡まで。愛車はbZ4X・LEVORG・LEXUS RXから選べるアウトラン風ドライブだに。'},
+   {h:'lifter.html',t:'ファクトリー☆リフター',g:'アクション',c:'#ffd23f',ic:'heli',
+    b:'ヘリで工場を撃って扉を開け、人質の役員を木曜日の練習場まで連れ帰る救出ゲーム。ファミコン式コントローラーで操作するだよ。'},
+   {h:'index.html?world=golf',t:'木曜日の迷宮 ゴルフコンペ編',g:'ADV',c:'#7be07b',ic:'golf',
+    b:'同じエンジンでゴルフ場が舞台。正しいクラブを選んでパー基準でまわるだら。池はペナルティ+1じゃん。'},
+   {h:'reversi.html',t:'木曜日のＶＡ爆弾リバーシ',g:'対戦',c:'#01cdfe',ic:'rev',
+    b:'リバーシで受注シェアの奪い合い。盤のどこかにＶＡ爆弾が埋まっとって、踏んだら「爆弾ＶＡを丸ごと了承」で負けだに。'},
+   {h:'sanbonjime.html',t:'木曜日の投資対効果三本締め対決',g:'リズム',c:'#ff9a3c',ic:'clap',
+    b:'パン・ヨッ・オーイエーをタイミングよく決めるリズムゲーム。正確なほど粗利が増えて、相手のＶＡ金額が積まれるだよ。'},
+   {h:'mitsumori3.html',t:'見積もりクエスト＜ＲＯＩＣバトルロワイヤル＞',g:'RPG',c:'#b48cff',ic:'sword',
+    b:'銀行の金利面談から組合お疲れ様会、ゴルフの壁、インド視察の計画づくりまで。経営者の秋を見積もりで駆け抜けるだら。'},
+   {h:'mitsumori2.html',t:'見積もりクエスト＜インドの花嫁＞',g:'RPG',c:'#ff7a9c',ic:'sword',
+    b:'見積書を持って川崎、羽田、バンコクを経てチェンナイへ出張して帰ってくる大冒険。商談は単価提示で勝負だに。'},
+   {h:'mitsumori.html',t:'見積もりクエスト',g:'RPG',c:'#5bd0a0',ic:'sword',
+    b:'ドラクエ風コマンドで連戦の見積もり合戦。みつもり・だんまり・じゅもん・にげるから選んで、納期ドラゴンに挑むじゃん。'},
+   {h:'invaders.html',t:'静岡インベーダー 経営防衛戦',g:'シューティング',c:'#a0e040',ic:'inv',
+    b:'上から迫る経営あるあるの編隊を、ドラッグで動かす砲台が淡々と撃ち落とす。標準化の壁で守って、頭上の謎の円盤も狙えるだよ。'},
+   {h:'index.html',t:'木曜日の迷宮 工場編',g:'ADV',c:'#ffb23f',pin:1,ic:'maze',
+    b:'シリーズのはじまり。約束戦士4人で迷宮化した工場を抜け出して、木曜の練習会を取り戻すコマンド式ADVだら。'}
+  ];
+  var P={
+   car:["................","................","................","......rrrr......",".....rrrrrr.....","....rwwwwwwr....","...rrrrrrrrrr...","..rrrrrrrrrrrr..","..rrwrrrrrrwrr..","..rrrrrrrrrrrr..","..kkkrrrrrrkkk..","..kkk......kkk..","................","yyyyyyyyyyyyyyyy","................","y.y.y.y.y.y.y.y."],
+   heli:["................","....hhhhhhhhhh..","........h.......","......kkkkkk....",".....kYYYYYk....","...hhkYYccYYk...","..kYYYYYccYYYk..","..kYYYYYYYYYYk..",".kk.kYYYYYYYk...","......kkkkkk....","...hhhhhhhhhhh..","...h........h...","................","gggggggggggggggg","................","................"],
+   golf:["................",".........rr.....","........rrr.....",".........rr.....",".........w......",".........w......",".........w......","...wwww..w......","..wwwwww.w......","..wwwwww.w......","...wwww..w......","................","gggggggggggggggg","gggggggggggggggg","gggggggggggggggg","gggggggggggggggg"],
+   clap:["................","................","....ww....ww....","...www....www...","...wwww..wwww...","..wwwwwwwwwwww..","..ooowwwwwwooo..","..ooooowwoooooo.","...ooooooooooo..","....ooooooooo...",".....ooooooo....","................","...y........y...","..y..y....y..y..","................","................"],
+   sword:["..............ww","............wwww","...........wwww.","..........wwww..","....w....wwww...","...ww...wwww....","....ww.wwww.....",".....wwwww......","......www.......",".....yywy.......","....yy..yy......","...yy....y......","..yy............","..y.............","................","................"],
+   inv:["................","................","...i........i...","....i......i....","...iiiiiiiiii...","..iiiiiiiiiiii..",".iiikiiiiiikiii.",".iiiiiiiiiiiiii.",".i.iiiiiiiiii.i.",".i.i........i.i.","....ii......ii..","................","................","......www.......","......www.......","................"],
+   maze:["................",".wwwwwwwwwwwwww.",".w............w.",".w.wwwwwwwwww.w.",".w.w........w.w.",".w.w.wwwwww.w.w.",".w.w.w....w.w.w.",".w.w.w.ww.w.w.w.",".w.w.w.w..w.w.w.",".w.w.w.wwww.w.w.",".w.w.w......w.w.",".w.w.wwwwwwww.w.",".w.w..........w.",".w.wwwwwwwwwwww.",".w..............",".wwwwwwwwwwwwww."]
+  };
+  var COL={k:'#05050d',r:'#e8262b',w:'#f2f2ff',y:'#ffd23f',g:'#2f9e44',c:'#7fe3ff',Y:'#ffd23f',o:'#ffb870',i:'#a0e040',h:'#7a7ab0'};
+  function draw(cv,key,accent){
+    var x=cv.getContext('2d');
+    x.fillStyle='#05050d';x.fillRect(0,0,16,16);
+    if(key==='rev'){
+      for(var j=0;j<16;j++)for(var i=0;i<16;i++){x.fillStyle=((i>>2)+(j>>2))%2?'#0a5a6a':'#0b3040';x.fillRect(i,j,1,1);}
+      x.fillStyle='#f2f2ff';x.fillRect(2,2,3,3);x.fillRect(5,5,3,3);
+      x.fillStyle='#ff71ce';x.fillRect(9,9,3,3);x.fillRect(5,9,3,3);
+      x.fillStyle='#111';x.fillRect(10,2,4,4);
+      x.fillStyle='#ffd23f';x.fillRect(12,1,1,1);x.fillRect(13,0,1,1);
+      return;
+    }
+    var m=P[key];
+    for(var r=0;r<m.length;r++)for(var c=0;c<16;c++){
+      var ch=m[r][c];
+      if(!ch||ch==='.') continue;
+      var col=COL[ch];
+      if(key==='maze'&&ch==='w') col=accent;
+      if(key==='sword'&&ch==='w') col='#dfe6ff';
+      if(key==='car'&&ch==='y') col='#6a6aa0';
+      x.fillStyle=col||'#fff';x.fillRect(c,r,1,1);
+    }
+  }
+  function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt)e.textContent=txt;return e;}
+  function build(list,ul){
+    list.forEach(function(g){
+      var li=el('li',g.pin?'pin':'');
+      var a=el('a','card');
+      a.href=g.h;a.style.setProperty('--c',g.c);
+      var cv=document.createElement('canvas');cv.width=16;cv.height=16;draw(cv,g.ic,g.c);
+      var ic=el('span','ico');ic.appendChild(cv);
+      var d=document.createElement('span');
+      d.appendChild(el('span','t',g.t));
+      d.appendChild(el('span','b',g.b));
+      d.appendChild(el('span','g',g.g));
+      d.appendChild(el('span','go','▶ PLAY'));
+      a.appendChild(ic);a.appendChild(d);
+      if(g.nw)a.appendChild(el('span','new','NEW'));
+      li.appendChild(a);ul.appendChild(li);
+    });
+  }
+  build(GAMES.slice(0,5),document.getElementById('g1'));
+  build(GAMES.slice(5),document.getElementById('g2'));
+  var cards=[].slice.call(document.querySelectorAll('.card'));
+  document.addEventListener('keydown',function(e){
+    var k=e.key,d=0;
+    if(k==='ArrowRight'||k==='ArrowDown')d=1;else if(k==='ArrowLeft'||k==='ArrowUp')d=-1;else return;
+    e.preventDefault();
+    var i=cards.indexOf(document.activeElement);
+    if(i<0)i=d>0?-1:0;
+    var n=(i+d+cards.length)%cards.length;
+    cards[n].focus();
+    cards[n].scrollIntoView({block:'center'});
+  });
+  if(cards[0])cards[0].focus({preventScroll:true});
+})();
+</script>
+</body>
+</html>

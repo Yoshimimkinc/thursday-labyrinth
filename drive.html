@@ -94,6 +94,27 @@ var playerZ=CAMH*camDepth;
 var MAXSPD=SEG*60;
 var ACCEL=MAXSPD/5, BRAKE=-MAXSPD, DECEL=-MAXSPD/5, OFFDECEL=-MAXSPD/2, OFFLIMIT=MAXSPD/4, CENTRI=0.3;
 var PLAYER_W=0.2;
+/* ---------- 車えらび（タイトルの あとで 選ぶ） ----------
+   max：最高速の倍率　acc：加速の倍率　steer：ハンドルの効き　centri：カーブで 外に 流される量
+   off：コースアウト時の 減速の強さ　offLim：コースアウトしても 出せる速さ
+   keep：車に 当たったとき 残る速さ（相手の速さ×keep）　shake：揺れの大きさ
+   st：選択画面の 星（加速・最高速・ハンドリング・重さ／1〜5） */
+var CARS=[
+  {id:'bz4x', name:'bZ4X', kind:'電気自動車（EV）', ev:true,
+   max:0.94, acc:1.8, steer:1.0, centri:1.0, off:1.0, offLim:1.0, keep:0.8, shake:1.0,
+   st:[5,3,3,3], col:'#e8eaee',
+   cm:'音が 静かだに〜。踏んだ瞬間 ぐいっと 出るで びっくりするら'},
+  {id:'levorg', name:'LEVORG', kind:'スポーツワゴン（AWD）',
+   max:1.0, acc:1.05, steer:1.12, centri:0.55, off:0.55, offLim:1.4, keep:0.8, shake:0.9,
+   st:[3,4,5,2], col:'#3a6ac8',
+   cm:'4駆で 道を つかんどるで、首都高の カーブも へっちゃらだに'},
+  {id:'rx', name:'LEXUS RX', kind:'ラグジュアリーSUV',
+   max:1.08, acc:0.8, steer:1.0, centri:0.9, off:1.0, offLim:1.0, keep:0.9, shake:0.5,
+   st:[2,5,3,5], col:'#8a8a96',
+   cm:'出だしは のんびり。でも 高速の 伸びと 乗り心地は いちばんだら'}
+];
+var CAR_IX=0, SEL=0;
+function CAR(){ return CARS[CAR_IX]; }
 
 var cv=document.getElementById('g'), cx=cv.getContext('2d');
 cx.imageSmoothingEnabled=false;
@@ -327,11 +348,23 @@ function engineStart(){
 function engineUpdate(pct,on){
   if(!ENG) return;
   try{
-    var t=AC.currentTime, f=50+pct*150;
-    ENG.o.frequency.setTargetAtTime(f,t,0.05);
-    ENG.o2.frequency.setTargetAtTime(f/2,t,0.05);
-    ENG.lp.frequency.setTargetAtTime(500+pct*1200,t,0.05);
-    ENG.g.gain.setTargetAtTime(on?0.035+pct*0.02:0,t,0.08);
+    var t=AC.currentTime, car=CAR(), ev=!!car.ev;
+    if(ENG.ev!==ev){                                  // EVは モーター音（高い うなり）に 切り替え
+      ENG.o.type=ev?'sine':'sawtooth'; ENG.o2.type=ev?'triangle':'square'; ENG.ev=ev;
+    }
+    if(ev){
+      var fe=180+pct*620;
+      ENG.o.frequency.setTargetAtTime(fe,t,0.05);
+      ENG.o2.frequency.setTargetAtTime(fe*2.01,t,0.05);
+      ENG.lp.frequency.setTargetAtTime(2400,t,0.05);
+      ENG.g.gain.setTargetAtTime(on?0.010+pct*0.014:0,t,0.08);
+    }else{
+      var lo=(car.id==='rx')?0.85:1, f=(50+pct*150)*lo;  // RXは 低く 静かめ
+      ENG.o.frequency.setTargetAtTime(f,t,0.05);
+      ENG.o2.frequency.setTargetAtTime(f/2,t,0.05);
+      ENG.lp.frequency.setTargetAtTime(500+pct*1200,t,0.05);
+      ENG.g.gain.setTargetAtTime(on?(0.035+pct*0.02)*lo:0,t,0.08);
+    }
   }catch(e){}
 }
 var BGM=null;
@@ -492,29 +525,30 @@ function setBanner(t1,t2,t3){ G.banner=[t1,t2||'',t3||'']; G.bannerT=170; }
 function update(dt){
   if(G.state!=='play') return;
   G.t++;
+  var car=CAR();                                      // 選んだ車の 性格（CARS）
   var pseg=findSegment(G.position+playerZ), spd=G.speed/MAXSPD, dx=dt*2*spd;
   updateCars(dt);
   G.position+=dt*G.speed;
   /* ハンドル */
   G.steer=0;
-  if(K.L){ G.playerX-=dx; G.steer=-1; }
-  else if(K.R){ G.playerX+=dx; G.steer=1; }
-  G.playerX-=dx*spd*pseg.curve*CENTRI;                // 遠心力
+  if(K.L){ G.playerX-=dx*car.steer; G.steer=-1; }
+  else if(K.R){ G.playerX+=dx*car.steer; G.steer=1; }
+  G.playerX-=dx*spd*pseg.curve*CENTRI*car.centri;     // 遠心力
   /* アクセル・ブレーキ */
   G.brake=!!K.D;
   if(K.D) G.speed=accelerate(G.speed,BRAKE,dt);
-  else if(K.U || G.auto) G.speed=accelerate(G.speed,ACCEL,dt);
+  else if(K.U || G.auto) G.speed=accelerate(G.speed,ACCEL*car.acc,dt);
   else G.speed=accelerate(G.speed,DECEL,dt);
   /* コースアウト：減速＋がたがた */
   if(Math.abs(G.playerX)>1){
-    if(G.speed>OFFLIMIT) G.speed=accelerate(G.speed,OFFDECEL,dt);
+    if(G.speed>OFFLIMIT*car.offLim) G.speed=accelerate(G.speed,OFFDECEL*car.off,dt);
     G.bounce=(G.t%4<2)?1:0;
     /* 道ばたの 物にぶつかると 大きく減速 */
     for(var si=0;si<pseg.sprites.length;si++){
       var sp=pseg.sprites[si];
       if(sp.type==='gate'||sp.type==='wall') continue;
       if(overlap(G.playerX,PLAYER_W,sp.offset,0.35) && G.speed>MAXSPD/6){
-        G.speed=MAXSPD/6; G.position=pseg.p1.world.z-playerZ; G.shake=8; sfx('bump');
+        G.speed=MAXSPD/6; G.position=pseg.p1.world.z-playerZ; G.shake=Math.round(8*car.shake); sfx('bump');
         break;
       }
     }
@@ -526,18 +560,18 @@ function update(dt){
     var c=pseg.cars[ci];
     var cw=(c.type==='truck')?0.24:0.2;
     if(G.speed>c.speed && overlap(G.playerX,PLAYER_W,c.offset,cw)){
-      G.speed=c.speed*0.8;
+      G.speed=c.speed*car.keep;                        // 重い車ほど 速さが 残る
       G.position=c.z-playerZ;
       G.playerX+=(G.playerX>=c.offset?1:-1)*0.25;      // 横に はじかれて 抜けられる
       if(G.hitCd<=0){
-        G.hits++; G.hitCd=45; G.shake=10; sfx('crash');
+        G.hits++; G.hitCd=45; G.shake=Math.round(10*car.shake); sfx('crash');
         say(['おっと！　車間距離は 大事だに','ゴツン！　……保険、入っとったっけ','ぶつかった！　「安全運転で 頼むで」（佐藤）'][G.hits%3]);
       }
       break;
     }
   }
   G.playerX=limit(G.playerX,-3,3);
-  G.speed=limit(G.speed,0,MAXSPD);
+  G.speed=limit(G.speed,0,MAXSPD*car.max);
   G.score+=Math.round(G.speed*dt/40);
   /* 背景の 流れ（カーブで 横に流れる） */
   G.bgOff+=pseg.curve*spd*dt*30;
@@ -833,26 +867,68 @@ function drawCar(c,x,y,u){
     rect(x-w*0.42,y-h*0.18,w*0.18,h*0.18,'#17171c'); rect(x+w*0.24,y-h*0.18,w*0.18,h*0.18,'#17171c');
   }
 }
-/* 自分の車：赤いオープンカーに 約束戦士4人 */
-function drawPlayer(){
-  var x=Math.round(W/2+G.steer*3), y=H-4-G.bounce;
-  var lean=G.steer*2;
-  rect(x-34,y-3,68,4,'rgba(0,0,0,0.35)');
-  rect(x-31,y-13,11,12,'#17171c'); rect(x+20,y-13,11,12,'#17171c');
-  var heads=[{dx:-17,dy:-36,c:'#d83030'},{dx:5,dy:-36,c:'#2a5acc'},{dx:-11,dy:-33,c:'#2a9a4a'},{dx:9,dy:-33,c:'#f0f0f0'}], i;
+/* 自分の車（後ろ姿）：えらんだ 車に 約束戦士4人。後ろの窓から 4人の 頭が 見える */
+function drawHeads(x,wy,ww,wh,lean,bob){
+  var heads=[{dx:-17,dy:3,c:'#d83030'},{dx:5,dy:3,c:'#2a5acc'},{dx:-11,dy:5,c:'#2a9a4a'},{dx:9,dy:5,c:'#f0f0f0'}], i;
+  cx.save(); cx.beginPath(); cx.rect(x-ww/2,wy,ww,wh); cx.clip();
   for(i=0;i<heads.length;i++){
-    var hd=heads[i], hx=x+hd.dx+lean, hy=y+hd.dy+((G.t>>3)%2&&G.speed>MAXSPD*0.5&&i%2?1:0);
+    var hd=heads[i], hx=x+hd.dx+lean, hy=wy+hd.dy+(bob&&i%2?1:0);
     rect(hx,hy,8,7,'#2a1a12');
     rect(hx,hy-2,8,3,hd.c);
   }
-  rect(x-26+lean,y-38,52,2,'rgba(190,230,255,0.6)');
-  rect(x-33,y-27,66,6,'#c81f1f');
-  rect(x-33,y-22,66,13,'#e02a2a');
-  rect(x-31,y-20,10,4,G.brake?'#ff4040':'#ff9a9a');
-  rect(x+21,y-20,10,4,G.brake?'#ff4040':'#ff9a9a');
-  if(G.brake){ cx.fillStyle='rgba(255,60,60,0.35)'; cx.fillRect(x-35,y-22,14,8); cx.fillRect(x+21,y-22,14,8); }
-  rect(x-7,y-16,14,5,'#f0f0f0'); txt('静岡',x,y-12,'#2a2a5a',5,'center');
-  rect(x-33,y-9,66,2,'#9a9a9a');
+  cx.restore();
+  rect(x-ww/2,wy,ww,1,'rgba(190,230,255,0.45)');
+}
+function plate(x,y){ rect(x-7,y,14,5,'#f0f0f0'); txt('静岡',x,y+4,'#2a2a5a',5,'center'); }
+function drawPlayerCar(id,x,y,lean,brake,bob){
+  var tl=brake?'#ff3030':'#b8222a', glow='rgba(255,60,60,0.35)';
+  if(id==='levorg'){                                  // 青い 低めの ステーションワゴン
+    rect(x-35,y-3,70,4,'rgba(0,0,0,0.35)');
+    rect(x-32,y-12,11,11,'#17171c'); rect(x+21,y-12,11,11,'#17171c');
+    rect(x-34,y-25,68,13,'#1f4fa8'); rect(x-34,y-25,68,1,'#4a7ad8');
+    rect(x-34,y-12,68,3,'#163a80'); rect(x-18,y-10,36,2,'#1a1a20');
+    rect(x-26,y-10,5,2,'#9a9aa4'); rect(x+21,y-10,5,2,'#9a9aa4');      // 2本出し マフラー
+    rect(x-29,y-35,58,10,'#1f4fa8');
+    rect(x-26,y-34,52,8,'#2a3a4a'); drawHeads(x,y-34,52,8,lean,bob);
+    rect(x-28,y-37,56,2,'#163a80');
+    rect(x-29,y-38,4,1,'#9a9aa4'); rect(x+25,y-38,4,1,'#9a9aa4');      // ルーフレール
+    rect(x-33,y-23,12,4,tl); rect(x+21,y-23,12,4,tl);
+    rect(x-31,y-22,6,2,brake?'#ffb0a0':'#e05050'); rect(x+25,y-22,6,2,brake?'#ffb0a0':'#e05050');
+    rect(x-21,y-22,42,1,'#c0c6d0');
+    rect(x-3,y-20,6,2,'#c0c6d0');
+    plate(x,y-17);
+    if(brake){ cx.fillStyle=glow; cx.fillRect(x-35,y-24,15,6); cx.fillRect(x+20,y-24,15,6); }
+  }else if(id==='rx'){                                // 黒っぽい 背の高い 高級SUV
+    rect(x-35,y-3,70,4,'rgba(0,0,0,0.35)');
+    rect(x-32,y-15,12,14,'#17171c'); rect(x+20,y-15,12,14,'#17171c');
+    rect(x-34,y-31,68,17,'#26262e'); rect(x-34,y-31,68,1,'#50505c');
+    rect(x-34,y-14,68,4,'#18181e');
+    poly(x-14,y-14,x+14,y-14,x+9,y-10,x-9,y-10,'#3a3a46');           // スピンドル風の ディフューザー
+    rect(x-24,y-11,48,1,'#a8acb8');
+    rect(x-28,y-47,56,16,'#26262e'); rect(x-25,y-49,50,2,'#26262e'); rect(x-26,y-50,52,1,'#3a3a44');
+    rect(x-25,y-45,50,11,'#34404e'); drawHeads(x,y-45,50,11,lean,bob);
+    rect(x-32,y-29,64,2,tl); rect(x-33,y-29,4,8,tl); rect(x+29,y-29,4,8,tl);  // 横一文字＋L字の テール
+    rect(x-3,y-26,6,3,'#c0c6d0'); rect(x-1,y-25,1,2,'#26262e'); rect(x-1,y-24,2,1,'#26262e');
+    plate(x,y-21);
+    if(brake){ cx.fillStyle=glow; cx.fillRect(x-35,y-30,70,4); cx.fillRect(x-35,y-26,7,6); cx.fillRect(x+28,y-26,7,6); }
+  }else{                                              // bZ4X：白い クロスオーバーEV・細い ライトバー
+    rect(x-34,y-3,68,4,'rgba(0,0,0,0.35)');
+    rect(x-31,y-14,11,13,'#17171c'); rect(x+20,y-14,11,13,'#17171c');
+    rect(x-33,y-28,66,15,'#e8eaee'); rect(x-33,y-17,66,2,'#c4c8d0');
+    rect(x-34,y-13,68,4,'#2a2a30');
+    rect(x-27,y-41,54,13,'#dfe2e8'); rect(x-24,y-43,48,2,'#dfe2e8');
+    rect(x-26,y-44,52,2,'#2a2a30');
+    rect(x-23,y-40,46,10,'#2a3a4a'); drawHeads(x,y-40,46,10,lean,bob);
+    rect(x-32,y-26,64,1,tl); rect(x-33,y-27,7,3,tl); rect(x+26,y-27,7,3,tl);
+    rect(x-2,y-23,4,2,'#9aa0aa'); rect(x+13,y-22,8,1,'#3a8ae0');
+    plate(x,y-19);
+    if(brake){ cx.fillStyle=glow; cx.fillRect(x-35,y-29,70,6); }
+  }
+}
+function drawPlayer(){
+  var x=Math.round(W/2+G.steer*3), y=H-4-G.bounce, i;
+  var bob=!!((G.t>>3)%2&&G.speed>MAXSPD*0.5);
+  drawPlayerCar(CAR().id,x,y,G.steer*2,G.brake,bob);
   if(Math.abs(G.playerX)>1 && G.speed>MAXSPD*0.1){            // 砂ぼこり
     cx.fillStyle='rgba(200,180,140,0.6)';
     for(i=0;i<4;i++) cx.fillRect(x-36+hash(G.t,i)*72,y-6-hash(i,G.t)*6,3,3);
@@ -928,6 +1004,11 @@ function drawHUD(pseg){
   var kmh=Math.round(G.speed/MAXSPD*180);
   rect(W-62,H-20,58,16,'rgba(13,6,33,0.55)');
   txt(kmh+' km/h',W-8,H-8,'#fffb96',11,'right');
+  /* 選んだ車の 名前（左下に 小さく）。EVは ブレーキで「回生」表示（見た目だけ） */
+  var car=CAR();
+  rect(4,H-15,car.name.length*5+8,11,'rgba(13,6,33,0.55)');
+  txt(car.name,8,H-7,car.ev?'#8ad0ff':'#efe6ff',7);
+  if(car.ev && G.brake && G.speed>MAXSPD*0.1 && G.state==='play') txt('回生 ブレーキ 充電中',W-8,H-24,(G.t>>3)%2?'#05ffa1':'#8ad0ff',7,'right');
   /* チェックポイントの 表示 */
   if(G.bannerT>0 && G.banner){
     var a=Math.min(1,G.bannerT/30);
@@ -1014,10 +1095,12 @@ function result(goal){
     h+='<p class="sp">スポンジマン「高速代、ぼくの ETCで 払っといたからね」</p>';
   }
   h+='<p style="text-align:center;color:#fffb96;margin-top:10px">— 木曜日のドライブ・完 —</p>';
-  h+='<button class="big" id="ag">もういちど 走る</button>';
+  h+='<button class="big" id="ag">もういちど 走る（'+CAR().name+'）</button>';
+  h+='<button class="big sub" id="ag2">クルマを えらびなおす</button>';
   setTimeout(function(){
     veil(h);
     el('ag').onclick=function(){ initAudio(); startGame(); };
+    el('ag2').onclick=function(){ initAudio(); openSelect(); };
   }, goal?1200:200);
 }
 function startGame(){
@@ -1025,14 +1108,84 @@ function startGame(){
   hideVeil();
   initAudio(); engineStart(); bgmStart(styleFor(STG[0].key));
   setBanner('START！','静岡 → 東京ビッグサイト → 静岡','制限時間 '+STG[0].bonus+'秒');
-  say('出発！　まずは 東名を 目指して 走りん');
+  say('出発！　'+CAR().name+'で まずは 東名を 目指して 走りん');
+}
+/* ---------- 車えらび画面（キャンバスに 描く：パッド・キーボード・タップ 全部で 操作できる） ---------- */
+var SEL_X0=4, SEL_CW=101, SEL_GAP=4, SEL_Y=18, SEL_CH=124, SEL_BTN={x:90,y:170,w:140,h:20};
+function openSelect(){
+  if(!G){ G=newGame(); }
+  G.state='select';
+  SEL=CAR_IX;
+  hideVeil();
+  try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }catch(e){}
+  K.L=K.R=K.U=K.D=0;
+  engineUpdate(0,false);
+  say('◀▶ で えらんで、アクセル（Enter）で 決定。クルマを 直接 タップしてもOK');
+}
+function selMove(d){
+  if(!G||G.state!=='select') return;
+  SEL=(SEL+d+CARS.length)%CARS.length;
+  tone(660,0,0.05,0.06,'square');
+}
+function selGo(){
+  if(!G||G.state!=='select') return;
+  CAR_IX=SEL;
+  tone(880,1320,0.12,0.08,'square');
+  startGame();
+}
+/* キャンバス上の 座標で タップ（カード＝選ぶ／選んでるカードをもう一度＝決定／出発ボタン＝決定） */
+function selTap(px,py){
+  if(!G||G.state!=='select') return;
+  var b=SEL_BTN;
+  if(px>=b.x && px<=b.x+b.w && py>=b.y-4 && py<=b.y+b.h+4){ selGo(); return; }
+  if(py<SEL_Y || py>SEL_Y+SEL_CH) return;
+  var i=Math.floor((px-SEL_X0)/(SEL_CW+SEL_GAP));
+  if(i<0||i>=CARS.length) return;
+  if(i===SEL) selGo();
+  else { SEL=i; tone(660,0,0.05,0.06,'square'); }
+}
+function renderSelect(){
+  G.t++;                                            // 点滅用（選択中は update が 止まっとるで ここで 進める）
+  var g=cx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#0d0621'); g.addColorStop(1,'#3a1a5e');
+  cx.fillStyle=g; cx.fillRect(0,0,W,H);
+  txt('ク ル マ を え ら び ん',W/2,13,'#ff71ce',11,'center');
+  var labels=['加速','最高速','ハンドル','重さ'], i, j;
+  for(i=0;i<CARS.length;i++){
+    var c=CARS[i], x0=SEL_X0+i*(SEL_CW+SEL_GAP), y0=SEL_Y, on=(i===SEL);
+    rect(x0,y0,SEL_CW,SEL_CH,on?'#2a1450':'#160a2a');
+    cx.strokeStyle=on?((G.t>>3)%2?'#fffb96':'#ff71ce'):'#5a4a7a'; cx.lineWidth=on?2:1;
+    cx.strokeRect(x0+0.5,y0+0.5,SEL_CW-1,SEL_CH-1);
+    /* 試乗コース風の 地面＋車の 後ろ姿 */
+    rect(x0+4,y0+38,SEL_CW-8,12,'#4a4a56'); rect(x0+4,y0+43,SEL_CW-8,1,'#8a8a96');
+    cx.save(); cx.translate(x0+SEL_CW/2,y0+50); cx.scale(0.8,0.8);
+    drawPlayerCar(c.id,0,0,0,on&&(G.t>>4)%2===1,false);
+    cx.restore();
+    txt(c.name,x0+SEL_CW/2,y0+62,on?'#fffb96':'#efe6ff',10,'center');
+    txt(c.kind,x0+SEL_CW/2,y0+72,c.ev?'#8ad0ff':'#b9a8e0',7,'center');
+    for(j=0;j<4;j++){
+      var ry=y0+80+j*11, k;
+      txt(labels[j],x0+5,ry+6,'#9a8ac0',7);
+      for(k=0;k<5;k++) rect(x0+44+k*10,ry,8,6,k<c.st[j]?(on?'#05ffa1':'#3aa070'):'#2a2040');
+    }
+  }
+  var cs=CARS[SEL];
+  cx.font='8px "MS Gothic",monospace';
+  var fz=fitFont(cs.cm,'','"MS Gothic",monospace',8,W-12);
+  txt(cs.cm,W/2,SEL_Y+SEL_CH+15,'#efe6ff',fz,'center');
+  var b=SEL_BTN;
+  rect(b.x,b.y,b.w,b.h,'#1a0b2e');
+  cx.strokeStyle='#01cdfe'; cx.lineWidth=2; cx.strokeRect(b.x+1,b.y+1,b.w-2,b.h-2);
+  txt('この クルマで 出発 ▶',W/2,b.y+14,'#fffb96',10,'center');
+  txt('◀▶ えらぶ',6,H-3,'#7fd6a2',7);
+  txt('アクセル/Enter 決定',W-6,H-3,'#7fd6a2',7,'right');
 }
 function title(){
   var h='';
   h+='<p style="text-align:center;color:#01cdfe;font-size:12px;letter-spacing:4px;margin-bottom:-2px">木 曜 日 の</p>';
   h+='<h2>ド ラ イ ブ</h2>';
   h+='<p style="text-align:center;color:#b967ff;font-size:10px;letter-spacing:2px;margin-top:-4px">ＴＨＵＲＳＤＡＹ　ＤＲＩＶＥ　ＲＵＮ</p>';
-  h+='<p>4人を 乗せた 赤いオープンカーで、静岡を 出発。東名、首都高を 抜けて <b>東京ビッグサイト</b>で 展示会を 見学し、帰りは <b>ブロックK</b>を 通って 静岡へ 帰る。</p>';
+  h+='<p>4人を 乗せて、えらんだ 愛車（bZ4X／LEVORG／LEXUS RX）で 静岡を 出発。東名、首都高を 抜けて <b>東京ビッグサイト</b>で 展示会を 見学し、帰りは <b>ブロックK</b>を 通って 静岡へ 帰る。</p>';
   h+='<p style="color:#7fd6a2">◆ ◀▶ ハンドル　／　アクセル・ブレーキ<br>'
     +'◆ 制限時間あり。区間の 切れ目の <b>CHECK POINT</b>で 時間が 延びる<br>'
     +'◆ ぶつかっても 減速するだけ。時間切れでも その場から コンティニューできる</p>';
@@ -1040,8 +1193,8 @@ function title(){
   h+='<button class="big" id="st">出 発（アクセル 自動）</button>';
   h+='<button class="big sub" id="st2">出 発（アクセル 手動）</button>';
   veil(h);
-  el('st').onclick=function(){ AUTO=true; initAudio(); startGame(); };
-  el('st2').onclick=function(){ AUTO=false; initAudio(); startGame(); };
+  el('st').onclick=function(){ AUTO=true; initAudio(); openSelect(); };
+  el('st2').onclick=function(){ AUTO=false; initAudio(); openSelect(); };
 }
 
 /* =========================================================================
@@ -1052,7 +1205,11 @@ function bindPad(){
   for(i=0;i<bs.length;i++){
     (function(b){
       var k=b.getAttribute('data-k');
-      function on(e){ e.preventDefault(); initAudio(); K[k]=1; b.classList.add('on');
+      function on(e){ e.preventDefault(); initAudio();
+        if(G && G.state==='select'){ b.classList.add('on');            // 車えらび中は メニュー操作
+          if(k==='L') selMove(-1); else if(k==='R') selMove(1); else if(k==='U') selGo();
+          return; }
+        K[k]=1; b.classList.add('on');
         if(e.pointerId!==undefined && b.setPointerCapture){ try{ b.setPointerCapture(e.pointerId); }catch(x){} } }
       function off(e){ if(e) e.preventDefault(); K[k]=0; b.classList.remove('on'); }
       b.addEventListener('pointerdown',on);
@@ -1072,7 +1229,23 @@ function bindPad(){
   });
   document.addEventListener('contextmenu',function(e){ if(!inVeil(e.target)) e.preventDefault(); });
   var map={ArrowLeft:'L',ArrowRight:'R',ArrowUp:'U',ArrowDown:'D',KeyZ:'U',KeyX:'D'};
-  document.addEventListener('keydown',function(e){ var k=map[e.code]; if(!k) return; e.preventDefault(); initAudio(); K[k]=1; });
+  document.addEventListener('keydown',function(e){
+    if(G && G.state==='select'){                                         // 車えらび中は メニュー操作
+      var c=e.code;
+      if(c==='ArrowLeft'){ e.preventDefault(); selMove(-1); }
+      else if(c==='ArrowRight'){ e.preventDefault(); selMove(1); }
+      else if(c==='Enter'||c==='NumpadEnter'||c==='Space'||c==='ArrowUp'||c==='KeyZ'){ e.preventDefault(); if(!e.repeat){ initAudio(); selGo(); } }
+      return;
+    }
+    var k=map[e.code]; if(!k) return; e.preventDefault(); initAudio(); K[k]=1; });
+  /* 車えらび画面：キャンバスを 直接 タップ */
+  cv.addEventListener('pointerdown',function(e){
+    if(!G || G.state!=='select') return;
+    e.preventDefault(); initAudio();
+    var r=cv.getBoundingClientRect();
+    if(!r.width||!r.height) return;
+    selTap((e.clientX-r.left)/r.width*W,(e.clientY-r.top)/r.height*H);
+  });
   document.addEventListener('keyup',function(e){ var k=map[e.code]; if(!k) return; e.preventDefault(); K[k]=0; });
   window.addEventListener('blur',function(){ K.L=K.R=K.U=K.D=0; });
   document.addEventListener('dblclick',function(e){ e.preventDefault(); });
@@ -1090,7 +1263,7 @@ function frame(ts){
   acc+=dt;
   while(acc>=STEP){ if(G) update(STEP); acc-=STEP; }
   if(G){
-    render();
+    if(G.state==='select') renderSelect(); else render();
     engineUpdate(G.speed/MAXSPD, G.state==='play');
   }
   requestAnimationFrame(frame);
